@@ -6,6 +6,12 @@ from scipy.sparse.linalg.dsolve import linsolve
 from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
 import time as time
 
+
+
+
+#Weir notes:
+#consider replacing range with np.arange - may improve speed - or not as it turns out
+
 #------------------------------------------------------------------------------
 
 def density(x,y,y0,rho_alpha):
@@ -89,11 +95,14 @@ gy=-1
 
 pnormalise=True
 viscosity=1  # dynamic viscosity \mu
-y0=59./64.
+y0=63./64.
 rho_alpha=64.
 
 eps=1.e-10
 sqrt3=np.sqrt(3.)
+
+hx = Lx/nelx
+hy = Ly/nely
 
 #################################################################
 # grid point setup
@@ -126,6 +135,8 @@ for j in range(0, nely):
         icon[2, counter] = i + 1 + (j + 1) * (nelx + 1)
         icon[3, counter] = i + (j + 1) * (nelx + 1)
         counter += 1
+
+np.savetxt("icon.dat",np.transpose(icon),fmt='%.4i')
 
 print("setup: connectivity: %.3f s" % (time.time() - start))
 
@@ -182,7 +193,7 @@ v     = np.zeros(nnp,dtype=np.float64)          # y-component velocity
 p     = np.zeros(nel,dtype=np.float64)          # y-component velocity
 c_mat = np.array([[2,0,0],[0,2,0],[0,0,1]],dtype=np.float64) 
 
-for iel in range(0, nel):
+for iel in np.arange(0, nel):
 
     # set arrays to 0 every loop
     f_el =np.zeros((m*ndofV),dtype=np.float64)
@@ -375,7 +386,124 @@ np.savetxt('strainrate.ascii',np.array([xc,yc,exx,eyy,exy]).T,header='# xc,yc,ex
 
 print("compute press & sr: %.3f s" % (time.time() - start))
 
+######################################################################
+# attempt CBF
+######################################################################
 
+
+
+M_prime = np.zeros((64,64))
+
+rhs_cbf = np.zeros(64)
+
+counter = 0
+for iel in range(0,iel):
+  if (y[icon[3,iel]] > Ly-eps): #Check if element is on boundary
+    on_Upper_Boundary = True
+    counter +=1
+
+
+
+    # Create the elemental finite element matrixes
+    M_prime_el = np.array([[1/3.,1/6.],[1/6.,1/3.]])
+
+    # set arrays to 0 every loop
+    f_el =np.zeros((m*ndofV),dtype=np.float64)
+    K_el =np.zeros((m*ndofV,m*ndofV),dtype=np.float64)
+    G_el=np.zeros((m*ndofV,1),dtype=np.float64)
+    h_el=np.zeros((1,1),dtype=np.float64)
+
+    # integrate viscous term at 4 quadrature points
+    for iq in [-1, 1]:
+        for jq in [-1, 1]:
+
+            # position & weight of quad. point
+            rq=iq/sqrt3
+            sq=jq/sqrt3
+            weightq=1.*1.
+
+            # calculate shape functions
+            N[0:m]=NNV(rq,sq)
+            dNdr[0:m]=dNNVdr(rq,sq)
+            dNds[0:m]=dNNVds(rq,sq)
+
+            # calculate jacobian matrix
+            jcb = np.zeros((2, 2),dtype=float)
+            for k in range(0,m):
+                jcb[0, 0] += dNdr[k]*x[icon[k,iel]]
+                jcb[0, 1] += dNdr[k]*y[icon[k,iel]]
+                jcb[1, 0] += dNds[k]*x[icon[k,iel]]
+                jcb[1, 1] += dNds[k]*y[icon[k,iel]]
+
+            # calculate the determinant of the jacobian
+            jcob = np.linalg.det(jcb)
+
+            # calculate inverse of the jacobian matrix
+            jcbi = np.linalg.inv(jcb)
+
+            # compute dNdx & dNdy
+            xq=0.0
+            yq=0.0
+            rhoq=0.
+            for k in range(0, m):
+                xq+=N[k]*x[icon[k,iel]]
+                yq+=N[k]*y[icon[k,iel]]
+                rhoq+=N[k]*rho[icon[k,iel]]
+                dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
+                dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
+
+            # construct 3x8 b_mat matrix
+            for i in range(0, m):
+                b_mat[0:3, 2*i:2*i+2] = [[dNdx[i],0.     ],
+                                         [0.     ,dNdy[i]],
+                                         [dNdy[i],dNdx[i]]]
+
+            # compute elemental a_mat matrix
+            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*weightq*jcob
+
+            # compute elemental rhs vector
+            for i in range(0, m):
+                f_el[ndofV*i  ]+=N[i]*jcob*weightq*rhoq*gx
+                f_el[ndofV*i+1]+=N[i]*jcob*weightq*rhoq*gy
+                G_el[ndofV*i  ,0]-=dNdx[i]*jcob*weightq
+                G_el[ndofV*i+1,0]-=dNdy[i]*jcob*weightq
+
+    vx_el = [u[icon[0,iel]],u[icon[1,iel]],u[icon[2,iel]],u[icon[3,iel]]]
+    vy_el = [v[icon[0,iel]],v[icon[1,iel]],v[icon[2,iel]],v[icon[3,iel]]]
+
+    v_el = np.array([vx_el[0],vy_el[0],vx_el[1],vy_el[1],vx_el[2],vy_el[2],vx_el[3],vy_el[3]])
+
+    #K_prime_el
+    K_prime_el = np.array([np.dot(K_el[:,5],v_el),np.dot(K_el[:,7],v_el)])
+
+    #print(K_prime_el.shape)
+
+
+    #g_prime_el
+
+    p_el = p[iel]
+    g_prime_el = np.array([G_el[5]*p_el,G_el[7]*p_el])
+    #print(g_prime_el.shape)
+
+
+    #f_prime_el
+    f_prime_el = np.array([f_el[5],f_el[7]])
+    #print(f_prime_el.shape)
+
+    #Now assemble the matrixes
+
+    M_prime[counter-1:counter+1,counter-1:counter+1] += M_prime_el*hx
+    #print(rhs_cbf[counter-1:counter+1].shape)
+    #print((-K_prime_el - g_prime_el + f_prime_el).shape)
+    rhs_cbf[counter-1] += K_prime_el[0] + g_prime_el[0] - f_prime_el[0]
+    rhs_cbf[counter]   += K_prime_el[1] + g_prime_el[1] - f_prime_el[1]
+
+
+tractions=sps.linalg.spsolve(sps.csr_matrix(M_prime),rhs_cbf)
+
+np.savetxt("tractions.dat",tractions)
+
+print(tractions[0],sigmayy_th(0,y0),(tractions[0]-sigmayy_th(0,y0))/sigmayy_th(0,y0)*100 )
 
 
 ######################################################################
