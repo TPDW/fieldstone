@@ -7,11 +7,6 @@ from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
 import time as time
 
 
-
-
-#Weir notes:
-#consider replacing range with np.arange - may improve speed - or not as it turns out
-
 #------------------------------------------------------------------------------
 
 def density(x,y,y0,rho_alpha):
@@ -390,7 +385,7 @@ print("compute press & sr: %.3f s" % (time.time() - start))
 # attempt CBF
 ######################################################################
 
-
+start=time.time()
 
 M_prime = np.zeros((64,64))
 
@@ -473,28 +468,18 @@ for iel in range(0,iel):
 
     v_el = np.array([vx_el[0],vy_el[0],vx_el[1],vy_el[1],vx_el[2],vy_el[2],vx_el[3],vy_el[3]])
 
-    #K_prime_el
     K_prime_el = np.array([np.dot(K_el[:,5],v_el),np.dot(K_el[:,7],v_el)])
 
-    #print(K_prime_el.shape)
 
-
-    #g_prime_el
 
     p_el = p[iel]
     g_prime_el = np.array([G_el[5]*p_el,G_el[7]*p_el])
-    #print(g_prime_el.shape)
 
-
-    #f_prime_el
     f_prime_el = np.array([f_el[5],f_el[7]])
-    #print(f_prime_el.shape)
+
 
     #Now assemble the matrixes
-
     M_prime[counter-1:counter+1,counter-1:counter+1] += M_prime_el*hx
-    #print(rhs_cbf[counter-1:counter+1].shape)
-    #print((-K_prime_el - g_prime_el + f_prime_el).shape)
     rhs_cbf[counter-1] += K_prime_el[0] + g_prime_el[0] - f_prime_el[0]
     rhs_cbf[counter]   += K_prime_el[1] + g_prime_el[1] - f_prime_el[1]
 
@@ -503,6 +488,10 @@ tractions=sps.linalg.spsolve(sps.csr_matrix(M_prime),rhs_cbf)
 
 np.savetxt("tractions.dat",tractions)
 
+print("compute tractions via CBF: %.3f s" % (time.time() - start))
+
+
+print("Calculated Traction, Analytical Solution, Percentage Error (Upper left corner)")
 print(tractions[0],sigmayy_th(0,y0),(tractions[0]-sigmayy_th(0,y0))/sigmayy_th(0,y0)*100 )
 
 
