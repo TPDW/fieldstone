@@ -342,8 +342,8 @@ for istep in range(0,nstep):
                     eyyq+=dNdy[k]*v[icon[k,iel]]
                     exyq+=0.5*dNdy[k]*u[icon[k,iel]]+\
                           0.5*dNdx[k]*v[icon[k,iel]]
-                    rhoq[iiq]=density(rho0,alpha,Tq,T0)
-                    etaq[iiq]=viscosity(Tq,exxq,eyyq,exyq,gamma_T,gamma_y,sigma_y,eta_star,case)
+                rhoq[iiq]=density(rho0,alpha,Tq,T0)
+                etaq[iiq]=viscosity(Tq,exxq,eyyq,exyq,gamma_T,gamma_y,sigma_y,eta_star,case)
 
                 # construct 3x8 b_mat matrix
                 for i in range(0, m):
@@ -1013,6 +1013,18 @@ for istep in range(0,nstep):
     np.savetxt('veldepthavrg.ascii',np.array([rdepthavrg[0:nnr],veldepthavrg[0:nnr]]).T,header='# r,vel')
     np.savetxt('vrdepthavrg.ascii',np.array([rdepthavrg[0:nnr],vrdepthavrg[0:nnr]]).T,header='# r,vr')
     np.savetxt('vtdepthavrg.ascii',np.array([rdepthavrg[0:nnr],vtdepthavrg[0:nnr]]).T,header='# r,vt')
+
+    etadepthavrg=np.zeros(nelr,dtype=np.float64)
+    rdepthavrg=np.zeros(nelr,dtype=np.float64)
+
+    counter=0
+    for j in range(0, nelr):
+        for i in range(0, nelt):
+            etadepthavrg[j]+=eta_el[counter]/nelt
+            rdepthavrg[j]=(r[icon[0,counter]]+r[icon[3,counter]])/2.
+            counter+=1
+
+    np.savetxt('etadepthavrg.ascii',np.array([rdepthavrg[0:nelr],etadepthavrg[0:nelr]]).T,header='# r,T')
 
     #####################################################################
     # write to file 

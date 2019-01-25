@@ -1,7 +1,7 @@
 set term pdf enhanced
-set output 'errors.pdf'
+set output 'sigmazz.pdf'
 k=2*pi
-y0=59./64.
+y0=62./64.
 set key bottom 
 
 set xlabel 'x'
