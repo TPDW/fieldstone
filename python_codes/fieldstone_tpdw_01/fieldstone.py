@@ -715,7 +715,7 @@ M_prime_el =(hx/2.)*np.array([ \
 [2./3.,1./3.],\
 [1./3.,2./3.]])
 
-CBF_use_smoothed_pressure=True
+CBF_use_smoothed_pressure=False
 
 for iel in range(0,nel):
 
@@ -894,6 +894,8 @@ ax1.set_title("Lower Boundary")
 
 ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
 ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
+ax1.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax1.plot(eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
 ax2.plot(-sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
 ax2.plot(-sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
 ax2.legend()
