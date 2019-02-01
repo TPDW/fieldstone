@@ -7,24 +7,34 @@ from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
 import time as time
 import matplotlib.pyplot as plt
 
+
+#TODO: Implement theoretical tractions, plot along the correct axes/boundaries to compare CBF accuracy
+
 #------------------------------------------------------------------------------
 
-def density(x,y,y0,rho_alpha):
-    lambdaa=1
-    k=2*np.pi/lambdaa
-    if abs(y-y0)<1e-6:
-       val=rho_alpha*np.cos(k*x)#+1.
-    else:
-       val=0.#+1.
+def bx(x, y):
+    val=((12.-24.*y)*x**4+(-24.+48.*y)*x*x*x +
+         (-48.*y+72.*y*y-48.*y*y*y+12.)*x*x +
+         (-2.+24.*y-72.*y*y+48.*y*y*y)*x +
+         1.-4.*y+12.*y*y-8.*y*y*y)
+    return val
+def by(x, y):
+    val=((8.-48.*y+48.*y*y)*x*x*x+
+         (-12.+72.*y-72.*y*y)*x*x+
+         (4.-24.*y+48.*y*y-48.*y*y*y+24.*y**4)*x -
+         12.*y*y+24.*y*y*y-12.*y**4)
     return val
 
-def sigmayy_th(x,y0):
-    lambdaa=1.
-    k=2*np.pi/lambdaa
-    val=np.cos(k*x)/np.sinh(k)**2*\
-       (k*(1.-y0)*np.sinh(k)*np.cosh(k*y0)\
-       -k*np.sinh(k*(1.-y0))\
-       +np.sinh(k)*np.sinh(k*y0) )
+def velocity_x(x,y):
+    val=x*x*(1.-x)**2*(2.*y-6.*y*y+4*y*y*y)
+    return val
+
+def velocity_y(x,y):
+    val=-y*y*(1.-y)**2*(2.*x-6.*x*x+4*x*x*x)
+    return val
+
+def pressure(x,y):
+    val=x*(1.-x)-1./6.
     return val
 
 def NNV(rq,sq):
@@ -47,6 +57,22 @@ def dNNVds(rq,sq):
     dNds_2=+0.25*(1.+rq)
     dNds_3=+0.25*(1.-rq)
     return dNds_0,dNds_1,dNds_2,dNds_3
+
+
+
+def sigma_xx(x,y):
+  return x**2*(2*x - 2)*(4*y**3 - 6*y**2 + 2*y) + 2*x*(-x + 1)**2*(4*y**3 - 6*y**2 + 2*y) + x*(-x + 1) -1/6
+
+def sigma_xy(x,y):
+  return x**2*(-x + 1)**2*(12*y**2 - 12*y + 2)/2 - y**2*(-y + 1)**2*(12*x**2 - 12*x + 2)/2
+
+def sigma_yy(x,y):
+  return x*(-x + 1) - y**2*(2*y - 2)*(4*x**3 - 6*x**2 + 2*x) - 2*y*(-y + 1)**2*(4*x**3 - 6*x**2 + 2*x) -1/6
+
+def sigma_yx(x,y):
+  return sigma_xy(x,y)
+
+
 
 #------------------------------------------------------------------------------
 
@@ -78,14 +104,9 @@ NfemV=nnp*ndofV # number of velocity dofs
 NfemP=nel*ndofP  # number of pressure dofs
 Nfem=NfemV+NfemP # total number of dofs
 
-gx=0
-gy=-1
 
 pnormalise=True
 viscosity=1  # dynamic viscosity \mu
-
-y0=62./64.
-rho_alpha=64.
 
 hx=Lx/nelx
 
@@ -150,22 +171,44 @@ on_bd=np.zeros((nnp,4),dtype=np.bool)  # boundary indicator
 
 for i in range(0, nnp):
     if x[i]<eps:
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,0]=True
     if x[i]>(Lx-eps):
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        on_bd[i,1]=True
     if y[i]<eps:
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,2]=True
     if y[i]>(Ly-eps):
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,3]=True
+
+
+start = time.time()
+
+bc_fix=np.zeros(NfemV,dtype=np.bool)  # boundary condition, yes/no
+bc_val=np.zeros(NfemV,dtype=np.float64)  # boundary condition, value
+for i in range(0, nnp):
+    if x[i]<eps:
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+    if x[i]>(Lx-eps):
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+    if y[i]<eps:
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+    if y[i]>(Ly-eps):
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
 
 print("setup: boundary conditions: %.3f s" % (time.time() - start))
 
 NfemTr=np.sum(bc_fix)
-print (NfemTr)
 
 bc_nb=np.zeros(NfemV,dtype=np.int32)  # boundary condition, yes/no
 
@@ -175,16 +218,6 @@ for i in range(0,NfemV):
        bc_nb[i]=counter
        counter+=1
 
-print (np.min(bc_nb))
-print (np.max(bc_nb))
-
-#################################################################
-# building density array
-#################################################################
-rho = np.empty(nnp, dtype=np.float64)  
-
-for i in range(0,nnp):
-    rho[i]=density(x[i],y[i],y0,rho_alpha)
 
 #################################################################
 # build FE matrix
@@ -247,11 +280,9 @@ for iel in np.arange(0, nel):
             # compute dNdx & dNdy
             xq=0.0
             yq=0.0
-            rhoq=0.
             for k in range(0, m):
                 xq+=N[k]*x[icon[k,iel]]
                 yq+=N[k]*y[icon[k,iel]]
-                rhoq+=N[k]*rho[icon[k,iel]]
                 dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
                 dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
 
@@ -266,8 +297,8 @@ for iel in np.arange(0, nel):
 
             # compute elemental rhs vector
             for i in range(0, m):
-                f_el[ndofV*i  ]+=N[i]*jcob*weightq*rhoq*gx
-                f_el[ndofV*i+1]+=N[i]*jcob*weightq*rhoq*gy
+                f_el[ndofV*i  ]+=N[i]*jcob*weightq*bx(xq,yq)
+                f_el[ndofV*i+1]+=N[i]*jcob*weightq*by(xq,yq)
                 G_el[ndofV*i  ,0]-=dNdx[i]*jcob*weightq
                 G_el[ndofV*i+1,0]-=dNdy[i]*jcob*weightq
 
@@ -338,7 +369,14 @@ print("assemble blocks: %.3f s" % (time.time() - start))
 ######################################################################
 start = time.time()
 
-sol=sps.linalg.spsolve(sps.csr_matrix(a_mat),rhs,use_umfpack=True)
+
+sparse_matrix = sps.csr_matrix(a_mat)
+
+print("sparse matrix time: %.3f s" % (time.time()-start))
+
+start=time.time()
+
+sol=sps.linalg.spsolve(sparse_matrix,rhs,use_umfpack=True)
 
 print("solve time: %.3f s" % (time.time() - start))
 
@@ -356,6 +394,33 @@ print("     -> v (m,M) %.4f %.4f " %(np.min(v),np.max(v)))
 np.savetxt('velocity.ascii',np.array([x,y,u,v]).T,header='# x,y,u,v')
 
 print("split vel into u,v: %.3f s" % (time.time() - start))
+
+######################################################################
+# compute nodal pressure
+######################################################################
+
+q=np.zeros(nnp,dtype=np.float64)  
+count=np.zeros(nnp,dtype=np.float64)  
+
+for iel in range(0,nel):
+    q[icon[0,iel]]+=p[iel]
+    q[icon[1,iel]]+=p[iel]
+    q[icon[2,iel]]+=p[iel]
+    q[icon[3,iel]]+=p[iel]
+    count[icon[0,iel]]+=1
+    count[icon[1,iel]]+=1
+    count[icon[2,iel]]+=1
+    count[icon[3,iel]]+=1
+
+q=q/count
+
+
+p_smoothed = np.zeros(nel,dtype=np.float64)
+
+for iel in range(0,nel):
+  p_smoothed[iel] = np.sum(q[icon[:,iel]])/m
+
+
 
 ######################################################################
 # compute strainrate 
@@ -607,9 +672,9 @@ print("     -> exyn3 (m,M) %.4e %.4e " %(np.min(exyn3),np.max(exyn3)))
 np.savetxt('q_LS.ascii',np.array([x,y,q3]).T,header='# x,y,q3')
 np.savetxt('strainrate_ls.ascii',np.array([x,y,exxn3,eyyn3,exyn3]).T,header='# x,y,exxn3,eyyn3,exyn3')
 
-######################################################################
-# export elemental sigma_yy
-######################################################################
+# ######################################################################
+# # export elemental sigma_yy
+# ######################################################################
 sigmayy_el = np.empty(nel, dtype=np.float64)  
 sigmayy_analytical = np.empty(nnx,dtype=np.float64)  
 
@@ -622,23 +687,15 @@ np.savetxt('sigmayy_el.ascii',np.array([xc[nel-nelx:nel],\
 
 np.savetxt('sigmayy_C-N.ascii',np.array([x[nnp-nnx:nnp],\
                                         (-q1[nnp-nnx:nnp]+2.*viscosity*eyyn1[nnp-nnx:nnp])/hx,\
-                                        (-q1[nnp-nnx:nnp]+2.*viscosity*eyyn1[nnp-nnx:nnp])/hx - \
-                                         sigmayy_th(x[nnp-nnx:nnp],y0),\
-                                        ]).T,header='# x,sigmayy,error')
+                                        ]).T,header='# x,sigmayy')
 
 np.savetxt('sigmayy_LS.ascii',np.array([x[nnp-nnx:nnp],\
                                         (-q3[nnp-nnx:nnp]+2.*viscosity*eyyn3[nnp-nnx:nnp])/hx,\
-                                        (-q3[nnp-nnx:nnp]+2.*viscosity*eyyn3[nnp-nnx:nnp])/hx - \
-                                         sigmayy_th(x[nnp-nnx:nnp],y0),\
-                                        ]).T,header='# x,sigmayy,error')
+                                        ]).T,header='# x,sigmayy')
 
 
 
-#counter=0
-#for i in range(nnp-nnx,nnp):
-#    sigmayy_analytical[counter]=sigmayy_th(x[i],y0)
-#    counter+=1
-#np.savetxt('sigmayy_analytical.ascii',np.array([x[nnp-nnx:nnp],sigmayy_analytical]).T,header='# x,sigmayy')
+
 
 print("     -> sigmayy_el       (N-E) %6f " % ((sigmayy_el[nel-1])/hx) ) 
 print("     -> sigmayy_nod C->N (N-E) %6f " % ((-q1[nnp-1]+2.*viscosity*eyyn1[nnp-1])/hx) ) 
@@ -647,8 +704,7 @@ print("     -> sigmayy_nod LS   (N-E) %6f " % ((-q3[nnp-1]+2.*viscosity*eyyn3[nn
 #####################################################################
 # Consistent Boundary Flux method
 #####################################################################
-# we wish to compute sigma_yy on the top boundary only
-# this boundary counts nnx nodes, each with 1 dof for ty
+
 
 M_prime = np.zeros((NfemTr,NfemTr),np.float64)
 rhs_cbf = np.zeros(NfemTr,np.float64)
@@ -659,8 +715,9 @@ M_prime_el =(hx/2.)*np.array([ \
 [2./3.,1./3.],\
 [1./3.,2./3.]])
 
+CBF_use_smoothed_pressure=True
+
 for iel in range(0,nel):
-#for iel in range(nel-nnx-1,nel):
 
     #-----------------------
     # compute Kel, Gel, f
@@ -696,9 +753,7 @@ for iel in range(0,nel):
             jcbi = np.linalg.inv(jcb)
 
             # compute dNdx & dNdy
-            rhoq=0.
             for k in range(0, m):
-                rhoq+=N[k]*rho[icon[k,iel]]
                 dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
                 dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
 
@@ -710,11 +765,11 @@ for iel in range(0,nel):
 
             # compute elemental a_mat matrix
             K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*weightq*jcob
-            #print(rhoq)
+
             # compute elemental rhs vector
             for i in range(0, m):
-                f_el[ndofV*i  ]+=N[i]*jcob*weightq*rhoq*gx
-                f_el[ndofV*i+1]+=N[i]*jcob*weightq*rhoq*gy
+                f_el[ndofV*i  ]+=N[i]*jcob*weightq*bx(xq,yq)
+                f_el[ndofV*i+1]+=N[i]*jcob*weightq*by(xq,yq)
                 G_el[ndofV*i  ,0]-=dNdx[i]*jcob*weightq
                 G_el[ndofV*i+1,0]-=dNdy[i]*jcob*weightq
 
@@ -729,11 +784,11 @@ for iel in range(0,nel):
                      u[icon[1,iel]],v[icon[1,iel]],\
                      u[icon[2,iel]],v[icon[2,iel]],\
                      u[icon[3,iel]],v[icon[3,iel]] ])
+    if CBF_use_smoothed_pressure:
+      rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p_smoothed[iel]
+    else:
+      rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p[iel]
 
-    #print(f_el)
-
-
-    rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p[iel]
     #-----------------------
     # assemble 
     #-----------------------
@@ -817,13 +872,8 @@ for i in range(0,nnp):
     if bc_fix[idof]:
        ty[i]=sol[bc_nb[idof]]
 
-np.savetxt('sigmayy_cbf.ascii',np.array([x[nnp-nnx:nnp],ty[nnp-nnx:nnp]]).T,header='# x,sigmayy')
-
-print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
-print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
-
-np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
-
+np.savetxt("tractions_x.ascii",tx)
+np.savetxt("tractions_y.ascii",ty)
 
 ######################################################################
 ##### Output plots of tractions
@@ -833,13 +883,19 @@ fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
 #ax1 contains the lower tractions I guess
 
-ax1.plot(tx[:nnx],label="$t_x$")
-ax1.plot(ty[:nnx],label="$t_y$")
+ax1.plot(tx[:nnx],label="$t_x$ (CBF)")
+ax1.plot(ty[:nnx],label="$t_y$ (CBF)")
+ax1.plot(exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(sigma_xy(x[:nnx],0),label="$t_x$ analytical")
+ax1.plot(sigma_yy(x[:nnx],0),label="$t_y$ analytical")
 ax1.legend()
 ax1.set_title("Lower Boundary")
 
-ax2.plot(tx[(nnp-nnx):],label="$t_x$")
-ax2.plot(ty[(nnp-nnx):],label="$t_y$")
+ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
+ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
+ax2.plot(-sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
+ax2.plot(-sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
 ax2.legend()
 ax2.set_title("Upper Boundary")
 
@@ -851,28 +907,44 @@ left_ty = []
 right_ty= []
 left_tx = []
 right_tx= []
+right_y = []
+left_y  = []
 
 for i in range(0,nnp):
   if x[i]<eps:
     left_tx.append(tx[i])
     left_ty.append(ty[i])
+    left_y.append(y[i])
   if (Lx-x[i])<eps:
     right_tx.append(tx[i])
     right_ty.append(ty[i])
+    right_y.append(y[i])
 
-ax3.plot(right_tx,label="$t_x$")
-ax3.plot(right_ty,label="$t_y$")
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+
+ax3.plot(right_tx,label="$t_x$ (CBF)")
+ax3.plot(right_ty,label="$t_y$ (CBF)")
+ax3.plot(sigma_xx(1,right_y),label="$t_x$ analytical")
+ax3.plot(sigma_yx(1,right_y),label="$t_y$ analytical")
 ax3.legend()
 ax3.set_title("Right Boundary")
 
-ax4.plot(left_tx,label="$t_x$")
-ax4.plot(left_ty,label="$t_y$")
+ax4.plot(left_tx,label="$t_x$ (CBF)")
+ax4.plot(left_ty,label="$t_y$ (CBF)")
+ax4.plot(-sigma_xx(0,right_y),label="$t_x$ analytical")
+ax4.plot(-sigma_yx(0,right_y),label="$t_y$ analytical")
 ax4.legend()
 ax4.set_title("Left Boundary")
 
 fig.savefig("tractions.pdf")
 
+np.savetxt('sigmayy_cbf.ascii',np.array([x[nnp-nnx:nnp],ty[nnp-nnx:nnp]]).T,header='# x,sigmayy')
 
+print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
+print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
+
+np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
 
 #####################################################################
 # plot of solution
@@ -918,10 +990,10 @@ for iel in range (0,nel):
     vtufile.write("%10e\n" % p[iel])
 vtufile.write("</DataArray>\n")
 #--
-vtufile.write("<DataArray type='Float32' Name='sigma_yy' Format='ascii'> \n")
-for iel in range (0,nel):
-    vtufile.write("%10e\n" % sigmayy_el[iel])
-vtufile.write("</DataArray>\n")
+# vtufile.write("<DataArray type='Float32' Name='sigma_yy' Format='ascii'> \n")
+# for iel in range (0,nel):
+#     vtufile.write("%10e\n" % sigmayy_el[iel])
+# vtufile.write("</DataArray>\n")
 
 vtufile.write("</CellData>\n")
 #####
@@ -947,20 +1019,20 @@ for i in range(0,nnp):
     vtufile.write("%10e \n" %q3[i])
 vtufile.write("</DataArray>\n")
 #--
-vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
-for i in range(0,nnp):
-    vtufile.write("%10e \n" %eyyn1[i])
-vtufile.write("</DataArray>\n")
+# vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
+# for i in range(0,nnp):
+#     vtufile.write("%10e \n" %eyyn1[i])
+# vtufile.write("</DataArray>\n")
+# #--
+# vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
+# for i in range(0,nnp):
+#     vtufile.write("%10e \n" %eyyn3[i])
+# vtufile.write("</DataArray>\n")
 #--
-vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
-for i in range(0,nnp):
-    vtufile.write("%10e \n" %eyyn3[i])
-vtufile.write("</DataArray>\n")
-#--
-vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
-for i in range(0,nnp):
-    vtufile.write("%10e \n" %rho[i])
-vtufile.write("</DataArray>\n")
+# vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
+# for i in range(0,nnp):
+#     vtufile.write("%10e \n" %rho[i])
+# vtufile.write("</DataArray>\n")
 #--
 vtufile.write("</PointData>\n")
 #####

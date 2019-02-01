@@ -74,8 +74,8 @@ if int(len(sys.argv) == 4):
    nely = int(sys.argv[2])
    visu = int(sys.argv[3])
 else:
-   nelx = 100
-   nely = 100
+   nelx = 32
+   nely = 32
    visu = 1
 
 assert (nelx>0.), "nnx should be positive" 
