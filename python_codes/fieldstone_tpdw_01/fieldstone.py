@@ -72,6 +72,20 @@ def sigma_yy(x,y):
 def sigma_yx(x,y):
   return sigma_xy(x,y)
 
+def onePlot(variable, plotX, plotY, title, labelX, labelY, extVal, limitX, limitY, colorMap):
+    im = axes[plotX][plotY].imshow(np.flipud(variable),extent=extVal, cmap=colorMap, interpolation="nearest")
+    axes[plotX][plotY].set_title(title,fontsize=10, y=1.01)
+
+    if (limitX != 0.0):
+       axes[plotX][plotY].set_xlim(0,limitX)
+
+    if (limitY != 0.0):
+       axes[plotX][plotY].set_ylim(0,limitY)
+
+    axes[plotX][plotY].set_xlabel(labelX)
+    axes[plotX][plotY].set_ylabel(labelY)
+    fig.colorbar(im,ax=axes[plotX][plotY])
+    return
 
 
 #------------------------------------------------------------------------------
@@ -432,6 +446,7 @@ yc = np.zeros(nel,dtype=np.float64)
 exx = np.zeros(nel,dtype=np.float64)  
 eyy = np.zeros(nel,dtype=np.float64)  
 exy = np.zeros(nel,dtype=np.float64)  
+e = np.zeros(nel,dtype=np.float64)  
 
 for iel in range(0,nel):
 
@@ -461,6 +476,8 @@ for iel in range(0,nel):
         eyy[iel] += dNdy[k]*v[icon[k,iel]]
         exy[iel] += 0.5*dNdy[k]*u[icon[k,iel]]+\
                     0.5*dNdx[k]*v[icon[k,iel]]
+
+    e[iel]=np.sqrt(0.5*(exx[iel]*exx[iel]+eyy[iel]*eyy[iel])+exy[iel]*exy[iel])
 
 print("     -> exx (m,M) %.4e %.4e " %(np.min(exx),np.max(exx)))
 print("     -> eyy (m,M) %.4e %.4e " %(np.min(eyy),np.max(eyy)))
@@ -715,7 +732,7 @@ M_prime_el =(hx/2.)*np.array([ \
 [2./3.,1./3.],\
 [1./3.,2./3.]])
 
-CBF_use_smoothed_pressure=False
+CBF_use_smoothed_pressure=True
 
 for iel in range(0,nel):
 
@@ -885,19 +902,19 @@ fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
 ax1.plot(tx[:nnx],label="$t_x$ (CBF)")
 ax1.plot(ty[:nnx],label="$t_y$ (CBF)")
-ax1.plot(exyn1[:nnx],label="$t_x$ (C->N)")
-ax1.plot(eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
-ax1.plot(sigma_xy(x[:nnx],0),label="$t_x$ analytical")
-ax1.plot(sigma_yy(x[:nnx],0),label="$t_y$ analytical")
+# ax1.plot(exyn1[:nnx],label="$t_x$ (C->N)")
+# ax1.plot(eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
+ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
 ax1.legend()
 ax1.set_title("Lower Boundary")
 
 ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
 ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
-ax1.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-ax1.plot(eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
-ax2.plot(-sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
-ax2.plot(-sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
+# ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+# ax2.plot(eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
+ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
 ax2.legend()
 ax2.set_title("Upper Boundary")
 
@@ -1061,6 +1078,108 @@ vtufile.write("</Piece>\n")
 vtufile.write("</UnstructuredGrid>\n")
 vtufile.write("</VTKFile>\n")
 vtufile.close()
+######################################################################
+# compute error
+######################################################################
+start = time.time()
+
+error_u = np.empty(nnp,dtype=np.float64)
+error_v = np.empty(nnp,dtype=np.float64)
+error_q = np.empty(nnp,dtype=np.float64)
+error_p = np.empty(nel,dtype=np.float64)
+
+for i in range(0,nnp): 
+    error_u[i]=u[i]-velocity_x(x[i],y[i])
+    error_v[i]=v[i]-velocity_y(x[i],y[i])
+    error_q[i]=q[i]-pressure(x[i],y[i])
+
+for i in range(0,nel): 
+    error_p[i]=p[i]-pressure(xc[i],yc[i])
+
+errv=0.
+errp=0.
+for iel in range (0,nel):
+    for iq in [-1,1]:
+        for jq in [-1,1]:
+            rq=iq/sqrt3
+            sq=jq/sqrt3
+            wq=1.*1.
+            N[0]=0.25*(1.-rq)*(1.-sq)
+            N[1]=0.25*(1.+rq)*(1.-sq)
+            N[2]=0.25*(1.+rq)*(1.+sq)
+            N[3]=0.25*(1.-rq)*(1.+sq)
+            dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
+            dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
+            dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
+            dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
+            jcb=np.zeros((2,2),dtype=np.float64)
+            for k in range(0,m):
+                jcb[0,0]+=dNdr[k]*x[icon[k,iel]]
+                jcb[0,1]+=dNdr[k]*y[icon[k,iel]]
+                jcb[1,0]+=dNds[k]*x[icon[k,iel]]
+                jcb[1,1]+=dNds[k]*y[icon[k,iel]]
+            jcob=np.linalg.det(jcb)
+            xq=0.0
+            yq=0.0
+            uq=0.0
+            vq=0.0
+            for k in range(0,m):
+                xq+=N[k]*x[icon[k,iel]]
+                yq+=N[k]*y[icon[k,iel]]
+                uq+=N[k]*u[icon[k,iel]]
+                vq+=N[k]*v[icon[k,iel]]
+            errv+=((uq-velocity_x(xq,yq))**2+(vq-velocity_y(xq,yq))**2)*wq*jcob
+            errp+=(p[iel]-pressure(xq,yq))**2*wq*jcob
+
+errv=np.sqrt(errv)
+errp=np.sqrt(errp)
+
+
+print("     -> nel= %6d ; errv= %.8f ; errp= %.8f" %(nel,errv,errp))
+
+print("compute errors: %.3f s" % (time.time() - start))
+#####################################################################
+# plot of solution
+#####################################################################
+
+u_temp=np.reshape(u,(nny,nnx))
+v_temp=np.reshape(v,(nny,nnx))
+q_temp=np.reshape(q,(nny,nnx))
+p_temp=np.reshape(p,(nely,nelx))
+e_temp=np.reshape(e,(nely,nelx))
+exx_temp=np.reshape(exx,(nely,nelx))
+eyy_temp=np.reshape(eyy,(nely,nelx))
+exy_temp=np.reshape(exy,(nely,nelx))
+error_u_temp=np.reshape(error_u,(nny,nnx))
+error_v_temp=np.reshape(error_v,(nny,nnx))
+error_q_temp=np.reshape(error_q,(nny,nnx))
+error_p_temp=np.reshape(error_p,(nely,nelx))
+
+fig,axes = plt.subplots(nrows=3,ncols=4,figsize=(18,18))
+
+uextent=(np.amin(x),np.amax(x),np.amin(y),np.amax(y))
+pextent=(np.amin(xc),np.amax(xc),np.amin(yc),np.amax(yc))
+
+onePlot(u_temp,       0, 0, "$v_x$",                 "x", "y", uextent,  0,  0, 'Spectral_r')
+onePlot(v_temp,       0, 1, "$v_y$",                 "x", "y", uextent,  0,  0, 'Spectral_r')
+onePlot(p_temp,       0, 2, "$p$",                   "x", "y", pextent, Lx, Ly, 'RdGy_r')
+onePlot(q_temp,       0, 3, "$q$",                   "x", "y", pextent, Lx, Ly, 'RdGy_r')
+onePlot(exx_temp,     1, 0, "$\dot{\epsilon}_{xx}$", "x", "y", pextent, Lx, Ly, 'viridis')
+onePlot(eyy_temp,     1, 1, "$\dot{\epsilon}_{yy}$", "x", "y", pextent, Lx, Ly, 'viridis')
+onePlot(exy_temp,     1, 2, "$\dot{\epsilon}_{xy}$", "x", "y", pextent, Lx, Ly, 'viridis')
+onePlot(e_temp,       1, 3, "$\dot{\epsilon}$",      "x", "y", pextent, Lx, Ly, 'viridis')
+onePlot(error_u_temp, 2, 0, "$v_x-t^{th}_x$",        "x", "y", uextent,  0,  0, 'Spectral_r')
+onePlot(error_v_temp, 2, 1, "$v_y-t^{th}_y$",        "x", "y", uextent,  0,  0, 'Spectral_r')
+onePlot(error_p_temp, 2, 2, "$p-p^{th}$",            "x", "y", uextent,  0,  0, 'RdGy_r')
+onePlot(error_q_temp, 2, 3, "$q-p^{th}$",            "x", "y", uextent,  0,  0, 'RdGy_r')
+
+plt.subplots_adjust(hspace=0.5)
+plt.savefig('solution.pdf', bbox_inches='tight')
+
+
+
+
+
 
 print("-----------------------------")
 print("------------the end----------")
