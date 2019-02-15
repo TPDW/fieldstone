@@ -120,9 +120,9 @@ Nfem=NfemV+NfemP # total number of dofs
 
 
 pnormalise=True
+sparse=False
 viscosity=1  # dynamic viscosity \mu
 
-hx=Lx/nelx
 
 
 eps=1.e-10
@@ -193,11 +193,11 @@ for i in range(0, nnp):
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        on_bd[i,1]=True
     if y[i]<eps:
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,2]=True
     if y[i]>(Ly-eps):
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
+       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,3]=True
 
@@ -240,8 +240,14 @@ for i in range(0,NfemV):
 #################################################################
 start = time.time()
 
-K_mat = np.zeros((NfemV,NfemV),dtype=np.float64) # matrix K 
-G_mat = np.zeros((NfemV,NfemP),dtype=np.float64) # matrix GT
+if sparse:
+  if pnormalise:
+    A_sparse = lil_matrix((Nfem+1,Nfem+1))
+  else:
+    A_sparse = lil_matrix((Nfem,Nfem))
+else:
+  K_mat = np.zeros((NfemV,NfemV),dtype=np.float64) # matrix K 
+  G_mat = np.zeros((NfemV,NfemP),dtype=np.float64) # matrix GT
 f_rhs = np.zeros(NfemV,dtype=np.float64)         # right hand side f 
 h_rhs = np.zeros(NfemP,dtype=np.float64)         # right hand side h 
 b_mat = np.zeros((3,ndofV*m),dtype=np.float64)  # gradient matrix B 
@@ -346,9 +352,16 @@ for iel in np.arange(0, nel):
                 for i2 in range(0,ndofV):
                     jkk=ndofV*k2          +i2
                     m2 =ndofV*icon[k2,iel]+i2
-                    K_mat[m1,m2]+=K_el[ikk,jkk]
+                    if sparse:
+                      A_sparse[m1,m2] += K_el[ikk,jkk]
+                    else:
+                      K_mat[m1,m2]+=K_el[ikk,jkk]
             f_rhs[m1]+=f_el[ikk]
-            G_mat[m1,iel]+=G_el[ikk,0]
+            if sparse:
+              A_sparse[m1,NfemV+iel]+=G_el[ikk,0]
+              A_sparse[NfemV+iel,m1]+=G_el[ikk,0]
+            else:  
+              G_mat[m1,iel]+=G_el[ikk,0]
     h_rhs[iel]+=h_el[0]
 
 print("build FE matrix: %.3f s" % (time.time() - start))
@@ -358,20 +371,29 @@ print("build FE matrix: %.3f s" % (time.time() - start))
 ######################################################################
 start = time.time()
 
-if pnormalise:
-   a_mat = np.zeros((Nfem+1,Nfem+1),dtype=np.float64) # matrix of Ax=b
-   rhs   = np.zeros(Nfem+1,dtype=np.float64)          # right hand side of Ax=b
-   a_mat[0:NfemV,0:NfemV]=K_mat
-   a_mat[0:NfemV,NfemV:Nfem]=G_mat
-   a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
-   a_mat[Nfem,NfemV:Nfem]=1
-   a_mat[NfemV:Nfem,Nfem]=1
+if sparse:
+  if pnormalise:
+    rhs   = np.zeros(Nfem+1,dtype=np.float64)          # right hand side of Ax=b
+    A_sparse[Nfem,NfemV:Nfem]=1
+    A_sparse[NfemV:Nfem,Nfem]=1
+  else:
+    rhs   = np.zeros(Nfem,dtype=np.float64)          # right hand side of Ax=b
 else:
-   a_mat = np.zeros((Nfem,Nfem),dtype=np.float64)  # matrix of Ax=b
-   rhs   = np.zeros(Nfem,dtype=np.float64)         # right hand side of Ax=b
-   a_mat[0:NfemV,0:NfemV]=K_mat
-   a_mat[0:NfemV,NfemV:Nfem]=G_mat
-   a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
+
+  if pnormalise:
+     a_mat = np.zeros((Nfem+1,Nfem+1),dtype=np.float64) # matrix of Ax=b
+     rhs   = np.zeros(Nfem+1,dtype=np.float64)          # right hand side of Ax=b
+     a_mat[0:NfemV,0:NfemV]=K_mat
+     a_mat[0:NfemV,NfemV:Nfem]=G_mat
+     a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
+     a_mat[Nfem,NfemV:Nfem]=1
+     a_mat[NfemV:Nfem,Nfem]=1
+  else:
+     a_mat = np.zeros((Nfem,Nfem),dtype=np.float64)  # matrix of Ax=b
+     rhs   = np.zeros(Nfem,dtype=np.float64)         # right hand side of Ax=b
+     a_mat[0:NfemV,0:NfemV]=K_mat
+     a_mat[0:NfemV,NfemV:Nfem]=G_mat
+     a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
 
 rhs[0:NfemV]=f_rhs
 rhs[NfemV:Nfem]=h_rhs
@@ -383,8 +405,10 @@ print("assemble blocks: %.3f s" % (time.time() - start))
 ######################################################################
 start = time.time()
 
-
-sparse_matrix = sps.csr_matrix(a_mat)
+if sparse:
+  sparse_matrix = A_sparse.tocsr()
+else:
+  sparse_matrix = sps.csr_matrix(a_mat)
 
 print("sparse matrix time: %.3f s" % (time.time()-start))
 
@@ -527,6 +551,10 @@ exyn1/=count
 
 np.savetxt('q_C-N.ascii',np.array([x,y,q1]).T,header='# x,y,q1')
 np.savetxt('strainrate_C-N.ascii',np.array([x,y,exxn1,eyyn1,exyn1]).T,header='# x,y,exxn1,eyyn1,exyn1')
+
+sxxn1=exxn1+q1
+syyn1=eyyn1+q1
+sxyn1=exyn1
 
 #####################################################################
 # compute nodal strain rate - method 3: least squares 
@@ -732,7 +760,7 @@ M_prime_el =(hx/2.)*np.array([ \
 [2./3.,1./3.],\
 [1./3.,2./3.]])
 
-CBF_use_smoothed_pressure=True
+CBF_use_smoothed_pressure=False
 
 for iel in range(0,nel):
 
@@ -805,6 +833,11 @@ for iel in range(0,nel):
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p_smoothed[iel]
     else:
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p[iel]
+
+    use_theoretical_pressure=False
+    if use_theoretical_pressure:
+      rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*pressure(x[icon[k,iel]]+hx/2.0,y[icon[k,iel]]+hy/2.0)
+
 
     #-----------------------
     # assemble 
@@ -884,7 +917,7 @@ sol=sps.linalg.spsolve(sps.csr_matrix(M_prime),rhs_cbf)#,use_umfpack=True)
 for i in range(0,nnp):
     idof=2*i+0
     if bc_fix[idof]:
-       tx[i]=sol[bc_nb[idof]]
+       tx[i]=sol[bc_nb[idof]] 
     idof=2*i+1
     if bc_fix[idof]:
        ty[i]=sol[bc_nb[idof]]
@@ -902,8 +935,6 @@ fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
 ax1.plot(tx[:nnx],label="$t_x$ (CBF)")
 ax1.plot(ty[:nnx],label="$t_y$ (CBF)")
-# ax1.plot(exyn1[:nnx],label="$t_x$ (C->N)")
-# ax1.plot(eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
 ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
 ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
 ax1.legend()
@@ -911,8 +942,6 @@ ax1.set_title("Lower Boundary")
 
 ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
 ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
-# ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-# ax2.plot(eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
 ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
 ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
 ax2.legend()
@@ -941,6 +970,10 @@ for i in range(0,nnp):
 
 right_y=np.array(right_y)
 left_y=np.array(left_y)
+left_tx=np.array(left_tx)
+right_tx=np.array(right_tx)
+left_ty=np.array(left_ty)
+right_ty=np.array(right_ty)
 
 ax3.plot(right_tx,label="$t_x$ (CBF)")
 ax3.plot(right_ty,label="$t_y$ (CBF)")
@@ -951,12 +984,12 @@ ax3.set_title("Right Boundary")
 
 ax4.plot(left_tx,label="$t_x$ (CBF)")
 ax4.plot(left_ty,label="$t_y$ (CBF)")
-ax4.plot(-sigma_xx(0,right_y),label="$t_x$ analytical")
-ax4.plot(-sigma_yx(0,right_y),label="$t_y$ analytical")
+ax4.plot(-sigma_xx(0,left_y),label="$t_x$ analytical")
+ax4.plot(-sigma_yx(0,left_y),label="$t_y$ analytical")
 ax4.legend()
 ax4.set_title("Left Boundary")
 
-fig.savefig("tractions.pdf")
+fig.savefig("tractions_CBF.pdf")
 
 np.savetxt('sigmayy_cbf.ascii',np.array([x[nnp-nnx:nnp],ty[nnp-nnx:nnp]]).T,header='# x,sigmayy')
 
@@ -964,6 +997,143 @@ print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
 print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
 
 np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
+##################################################
+# Plot the C->N tractions and CBF
+##################################################
+
+fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
+
+#ax1 contains the lower tractions I guess
+
+ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-tx[:nnx],label="$t_x$ (CBF)")
+ax1.plot(-ty[:nnx],label="$t_y$ (CBF)")
+ax1.legend()
+ax1.set_title("Lower Boundary")
+
+ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
+ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
+ax2.legend()
+ax2.set_title("Upper Boundary")
+
+
+#there's probably a better way of doing this
+#but I'm not at my best so here's a bit of a hack
+
+left_ty_cn = []
+right_ty_cn= []
+left_tx_cn = []
+right_tx_cn= []
+right_y = []
+left_y  = []
+
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx_cn.append(exxn1[i]+q1[i])
+    left_ty_cn.append(exyn1[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx_cn.append(exxn1[i]+q1[i])
+    right_ty_cn.append(exyn1[i])
+    right_y.append(y[i])
+
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx_cn=np.array(left_tx_cn)
+right_tx_cn=np.array(right_tx_cn)
+left_ty_cn=np.array(left_ty_cn)
+right_ty_cn=np.array(right_ty_cn)
+
+ax3.plot(right_tx_cn,label="$t_x$ (C->N)")
+ax3.plot(right_ty_cn,label="$t_y$ (C->N)")
+ax3.plot(right_tx,label="$t_x$ (CBF)")
+ax3.plot(right_ty,label="$t_y$ (CBF)")
+ax3.legend()
+ax3.set_title("Right Boundary")
+
+ax4.plot(-left_tx_cn,label="$t_x$ (C->N)")
+ax4.plot(-left_ty_cn,label="$t_y$ (C->N)")
+ax4.plot(-left_tx,label="$t_x$ (CBF)")
+ax4.plot(-left_ty,label="$t_y$ (CBF)")
+ax4.legend()
+ax4.set_title("Left Boundary")
+
+fig.savefig("tractions_CN_CBF.pdf")
+
+##################################################
+# Plot the C->N tractions
+##################################################
+
+fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
+
+#ax1 contains the lower tractions I guess
+
+ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
+ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
+ax1.legend()
+ax1.set_title("Lower Boundary")
+
+ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
+ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
+ax2.legend()
+ax2.set_title("Upper Boundary")
+
+
+#there's probably a better way of doing this
+#but I'm not at my best so here's a bit of a hack
+
+left_ty = []
+right_ty= []
+left_tx = []
+right_tx= []
+right_y = []
+left_y  = []
+
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx.append(exxn1[i]+q1[i])
+    left_ty.append(exyn1[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx.append(exxn1[i]+q1[i])
+    right_ty.append(exyn1[i])
+    right_y.append(y[i])
+
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx=np.array(left_tx)
+right_tx=np.array(right_tx)
+left_ty=np.array(left_ty)
+right_ty=np.array(right_ty)
+
+ax3.plot(right_tx,label="$t_x$ (C->N)")
+ax3.plot(right_ty,label="$t_y$ (C->N)")
+ax3.plot(sigma_xx(1,right_y),label="$t_x$ analytical")
+ax3.plot(sigma_yx(1,right_y),label="$t_y$ analytical")
+ax3.legend()
+ax3.set_title("Right Boundary")
+
+ax4.plot(-left_tx,label="$t_x$ (C->N)")
+ax4.plot(-left_ty,label="$t_y$ (C->N)")
+ax4.plot(-sigma_xx(0,left_y),label="$t_x$ analytical")
+ax4.plot(-sigma_yx(0,left_y),label="$t_y$ analytical")
+ax4.legend()
+ax4.set_title("Left Boundary")
+
+fig.savefig("tractions_CN.pdf")
+
+
+
+
+
+
 
 #####################################################################
 # plot of solution
@@ -1038,16 +1208,73 @@ for i in range(0,nnp):
     vtufile.write("%10e \n" %q3[i])
 vtufile.write("</DataArray>\n")
 #--
-# vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %eyyn1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %eyyn3[i])
-# vtufile.write("</DataArray>\n")
+vtufile.write("<DataArray type='Float32' Name='p (theoretical)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %pressure(x[i],y[i]))
+vtufile.write("</DataArray>\n")
 #--
+vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %eyyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %eyyn3[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxx (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sxxn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxx (theoretical)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sigma_xx(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxx (error)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %(sxxn1[i]-sigma_xx(x[i],y[i])))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='syy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %syyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='syy (theoretical)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sigma_yy(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='syy (error)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %(syyn1[i]-sigma_yy(x[i],y[i])))
+vtufile.write("</DataArray>\n")
+#--
+#--
+vtufile.write("<DataArray type='Float32' Name='sxy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sxyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxy (theoretical)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sigma_xy(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxy (error)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %(sxyn1[i]-sigma_xy(x[i],y[i])))
+vtufile.write("</DataArray>\n")
+#--
+
+
+
+
+#--
+print(len(sxxn1),len(eyyn1))
 # vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
 # for i in range(0,nnp):
 #     vtufile.write("%10e \n" %rho[i])
@@ -1177,7 +1404,19 @@ plt.subplots_adjust(hspace=0.5)
 plt.savefig('solution.pdf', bbox_inches='tight')
 
 
+##############################################################
+#2D plots of the strain rates and theoretical strain rates
+##############################################################
+fig,((ax1,ax2,ax12),(ax3,ax4,ax34),(ax5,ax6,ax56)) = plt.subplots(3,3,figsize=(10,10))
+X_grid,Y_grid=np.meshgrid(np.linspace(0,Lx,nnx),np.linspace(0,Ly,nny))
+ax1.contourf(sigma_xx(X_grid,Y_grid))
+fig.colorbar(ax1.contourf(sigma_xx(X_grid,Y_grid)),ax=ax1)
+ax2.contourf(np.reshape(exxn1+q1,(nny,nnx)))
+fig.colorbar(ax2.contourf(np.reshape(exxn1+q1,(nny,nnx))),ax=ax2)
+ax12.contourf(sigma_xx(X_grid,Y_grid)-np.reshape(exxn1+q1,(nny,nnx)))
+fig.colorbar(ax12.contourf(sigma_xx(X_grid,Y_grid)-np.reshape(exxn1+q1,(nny,nnx))),ax=ax12)
 
+fig.savefig("sigma_contours.pdf")
 
 
 
