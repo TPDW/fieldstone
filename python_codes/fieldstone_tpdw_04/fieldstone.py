@@ -7,34 +7,22 @@ from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
 import time as time
 import matplotlib.pyplot as plt
 
-
-#TODO: Implement theoretical tractions, plot along the correct axes/boundaries to compare CBF accuracy
+#This version of fieldstone is designed to sink a ball and see what happens with the tractions
 
 #------------------------------------------------------------------------------
 
-def bx(x, y):
-    val=((12.-24.*y)*x**4+(-24.+48.*y)*x*x*x +
-         (-48.*y+72.*y*y-48.*y*y*y+12.)*x*x +
-         (-2.+24.*y-72.*y*y+48.*y*y*y)*x +
-         1.-4.*y+12.*y*y-8.*y*y*y)
-    return val
-def by(x, y):
-    val=((8.-48.*y+48.*y*y)*x*x*x+
-         (-12.+72.*y-72.*y*y)*x*x+
-         (4.-24.*y+48.*y*y-48.*y*y*y+24.*y**4)*x -
-         12.*y*y+24.*y*y*y-12.*y**4)
+def rho(x,y):
+    if (x-.5)**2+(y-0.5)**2<0.123**2:
+       val=2.
+    else:
+       val=1.
     return val
 
-def velocity_x(x,y):
-    val=x*x*(1.-x)**2*(2.*y-6.*y*y+4*y*y*y)
-    return val
-
-def velocity_y(x,y):
-    val=-y*y*(1.-y)**2*(2.*x-6.*x*x+4*x*x*x)
-    return val
-
-def pressure(x,y):
-    val=x*(1.-x)-1./6.
+def mu(x,y):
+    if (x-.5)**2+(y-0.5)**2<0.123**2:
+       val=1.e2
+    else:
+       val=1.
     return val
 
 def NNV(rq,sq):
@@ -59,18 +47,6 @@ def dNNVds(rq,sq):
     return dNds_0,dNds_1,dNds_2,dNds_3
 
 
-
-def sigma_xx(x,y):
-  return x**2*(2*x - 2)*(4*y**3 - 6*y**2 + 2*y) + 2*x*(-x + 1)**2*(4*y**3 - 6*y**2 + 2*y) + x*(-x + 1) -1/6
-
-def sigma_xy(x,y):
-  return x**2*(-x + 1)**2*(12*y**2 - 12*y + 2)/2 - y**2*(-y + 1)**2*(12*x**2 - 12*x + 2)/2
-
-def sigma_yy(x,y):
-  return x*(-x + 1) - y**2*(2*y - 2)*(4*x**3 - 6*x**2 + 2*x) - 2*y*(-y + 1)**2*(4*x**3 - 6*x**2 + 2*x) -1/6
-
-def sigma_yx(x,y):
-  return sigma_xy(x,y)
 
 def onePlot(variable, plotX, plotY, title, labelX, labelY, extVal, limitX, limitY, colorMap):
     im = axes[plotX][plotY].imshow(np.flipud(variable),extent=extVal, cmap=colorMap, interpolation="nearest")
@@ -119,11 +95,11 @@ NfemP=nel*ndofP  # number of pressure dofs
 Nfem=NfemV+NfemP # total number of dofs
 
 
-pnormalise=True
+pnormalise=False
 sparse=False
-viscosity=1  # dynamic viscosity \mu
 
-
+gx=0
+gy=1
 
 eps=1.e-10
 sqrt3=np.sqrt(3.)
@@ -189,36 +165,19 @@ for i in range(0, nnp):
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,0]=True
     if x[i]>(Lx-eps):
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       #bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,1]=True
     if y[i]<eps:
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,2]=True
     if y[i]>(Ly-eps):
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
+       #bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,3]=True
 
 
-start = time.time()
-
-bc_fix=np.zeros(NfemV,dtype=np.bool)  # boundary condition, yes/no
-bc_val=np.zeros(NfemV,dtype=np.float64)  # boundary condition, value
-for i in range(0, nnp):
-    if x[i]<eps:
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
-    if x[i]>(Lx-eps):
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
-    if y[i]<eps:
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
-    if y[i]>(Ly-eps):
-       bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
-       bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
 
 print("setup: boundary conditions: %.3f s" % (time.time() - start))
 
@@ -313,12 +272,12 @@ for iel in np.arange(0, nel):
                                          [dNdy[i],dNdx[i]]]
 
             # compute elemental a_mat matrix
-            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*weightq*jcob
+            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*mu(xq,yq)*weightq*jcob
 
             # compute elemental rhs vector
             for i in range(0, m):
-                f_el[ndofV*i  ]+=N[i]*jcob*weightq*bx(xq,yq)
-                f_el[ndofV*i+1]+=N[i]*jcob*weightq*by(xq,yq)
+                f_el[ndofV*i  ]+=N[i]*jcob*weightq*rho(xq,yq)*gx
+                f_el[ndofV*i+1]+=N[i]*jcob*weightq*rho(xq,yq)*gy
                 G_el[ndofV*i  ,0]-=dNdx[i]*jcob*weightq
                 G_el[ndofV*i+1,0]-=dNdy[i]*jcob*weightq
 
@@ -724,45 +683,45 @@ sigmayy_el = np.empty(nel, dtype=np.float64)
 sigmayy_analytical = np.empty(nnx,dtype=np.float64)  
 
 for iel in range(1,nel):
-    sigmayy_el[iel]=(-p[iel]+2.*viscosity*eyy[iel])
+    sigmayy_el[iel]=(-p[iel]+2.*mu(x[i],y[i])*eyy[iel])
 
-np.savetxt('sigmayy_el.ascii',np.array([xc[nel-nelx:nel],\
-                                        (sigmayy_el[nel-nelx:nel])/hx,\
-                                       ]).T,header='# xc,sigmayy')
+# np.savetxt('sigmayy_el.ascii',np.array([xc[nel-nelx:nel],\
+#                                         (sigmayy_el[nel-nelx:nel])/hx,\
+#                                        ]).T,header='# xc,sigmayy')
 
-np.savetxt('sigmayy_C-N.ascii',np.array([x[nnp-nnx:nnp],\
-                                        (-q1[nnp-nnx:nnp]+2.*viscosity*eyyn1[nnp-nnx:nnp])/hx,\
-                                        ]).T,header='# x,sigmayy')
+# np.savetxt('sigmayy_C-N.ascii',np.array([x[nnp-nnx:nnp],\
+#                                         (-q1[nnp-nnx:nnp]+2.*mu(x[nnp-nnx:nnp],y[nnp-nnx:nnp])*eyyn1[nnp-nnx:nnp])/hx,\
+#                                         ]).T,header='# x,sigmayy')
 
-np.savetxt('sigmayy_LS.ascii',np.array([x[nnp-nnx:nnp],\
-                                        (-q3[nnp-nnx:nnp]+2.*viscosity*eyyn3[nnp-nnx:nnp])/hx,\
-                                        ]).T,header='# x,sigmayy')
-
-
+# np.savetxt('sigmayy_LS.ascii',np.array([x[nnp-nnx:nnp],\
+#                                         (-q3[nnp-nnx:nnp]+2.*mu(x[nnp-nnx:nnp],y[nnp-nnx:nnp])*eyyn3[nnp-nnx:nnp])/hx,\
+#                                         ]).T,header='# x,sigmayy')
 
 
 
-print("     -> sigmayy_el       (N-E) %6f " % ((sigmayy_el[nel-1])/hx) ) 
-print("     -> sigmayy_nod C->N (N-E) %6f " % ((-q1[nnp-1]+2.*viscosity*eyyn1[nnp-1])/hx) ) 
-print("     -> sigmayy_nod LS   (N-E) %6f " % ((-q3[nnp-1]+2.*viscosity*eyyn3[nnp-1])/hx) )
+
+
+# print("     -> sigmayy_el       (N-E) %6f " % ((sigmayy_el[nel-1])/hx) ) 
+# print("     -> sigmayy_nod C->N (N-E) %6f " % ((-q1[nnp-1]+2.*mu(x[nnp-1],y[nnp-1])*eyyn1[nnp-1])/hx) ) 
+# print("     -> sigmayy_nod LS   (N-E) %6f " % ((-q3[nnp-1]+2.*mu(x[nnp-1],y[nnp-1])*eyyn3[nnp-1])/hx) )
 
 #####################################################################
 # Consistent Boundary Flux method
 #####################################################################
 
 
-M_prime = np.zeros((2*nnx,2*nnx),np.float64)
-rhs_cbf = np.zeros(2*nnx,np.float64)
-tx = np.zeros(nnx,np.float64)
-ty = np.zeros(nnx,np.float64)
+M_prime = np.zeros((NfemTr,NfemTr),np.float64)
+rhs_cbf = np.zeros(NfemTr,np.float64)
+tx = np.zeros(nnp,np.float64)
+ty = np.zeros(nnp,np.float64)
 
 M_prime_el =(hx/2.)*np.array([ \
 [2./3.,1./3.],\
 [1./3.,2./3.]])
 
-CBF_use_smoothed_pressure=True
+CBF_use_smoothed_pressure=False
 
-for iel in range(nel-nelx,nel):
+for iel in range(0,nel):
 
     #-----------------------
     # compute Kel, Gel, f
@@ -809,12 +768,12 @@ for iel in range(nel-nelx,nel):
                                          [dNdy[i],dNdx[i]]]
 
             # compute elemental a_mat matrix
-            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*weightq*jcob
+            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*mu(xq,yq)*weightq*jcob
 
             # compute elemental rhs vector
             for i in range(0, m):
-                f_el[ndofV*i  ]+=N[i]*jcob*weightq*bx(xq,yq)
-                f_el[ndofV*i+1]+=N[i]*jcob*weightq*by(xq,yq)
+                f_el[ndofV*i  ]+=N[i]*jcob*weightq*rho(xq,yq)*gx
+                f_el[ndofV*i+1]+=N[i]*jcob*weightq*rho(xq,yq)*gy
                 G_el[ndofV*i  ,0]-=dNdx[i]*jcob*weightq
                 G_el[ndofV*i+1,0]-=dNdy[i]*jcob*weightq
 
@@ -834,7 +793,7 @@ for iel in range(nel-nelx,nel):
     else:
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p[iel]
 
-    use_theoretical_pressure=True
+    use_theoretical_pressure=False
     if use_theoretical_pressure:
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*pressure(x[icon[k,iel]]+hx/2.0,y[icon[k,iel]]+hy/2.0)
 
@@ -844,40 +803,40 @@ for iel in range(nel-nelx,nel):
     #-----------------------
 
     #boundary 0-1 : x,y dofs
-    # for i in range(0,ndofV):
-    #     idof0=2*icon[0,iel]+i
-    #     idof1=2*icon[1,iel]+i
-    #     if (bc_fix[idof0] and bc_fix[idof1]):  
-    #        idofTr0=bc_nb[idof0]   
-    #        idofTr1=bc_nb[idof1]
-    #        rhs_cbf[idofTr0]+=rhs_el[0+i]   
-    #        rhs_cbf[idofTr1]+=rhs_el[2+i]   
-    #        M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
-    #        M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
-    #        M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
-    #        M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
+    for i in range(0,ndofV):
+        idof0=2*icon[0,iel]+i
+        idof1=2*icon[1,iel]+i
+        if (bc_fix[idof0] and bc_fix[idof1]):  
+           idofTr0=bc_nb[idof0]   
+           idofTr1=bc_nb[idof1]
+           rhs_cbf[idofTr0]+=rhs_el[0+i]   
+           rhs_cbf[idofTr1]+=rhs_el[2+i]   
+           M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
+           M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
+           M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
+           M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
 
-    # #boundary 1-2 : x,y dofs
-    # for i in range(0,ndofV):
-    #     idof0=2*icon[1,iel]+i
-    #     idof1=2*icon[2,iel]+i
-    #     if (bc_fix[idof0] and bc_fix[idof1]):  
-    #        idofTr0=bc_nb[idof0]   
-    #        idofTr1=bc_nb[idof1]
-    #        rhs_cbf[idofTr0]+=rhs_el[2+i]   
-    #        rhs_cbf[idofTr1]+=rhs_el[4+i]   
-    #        M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
-    #        M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
-    #        M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
-    #        M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
+    #boundary 1-2 : x,y dofs
+    for i in range(0,ndofV):
+        idof0=2*icon[1,iel]+i
+        idof1=2*icon[2,iel]+i
+        if (bc_fix[idof0] and bc_fix[idof1]):  
+           idofTr0=bc_nb[idof0]   
+           idofTr1=bc_nb[idof1]
+           rhs_cbf[idofTr0]+=rhs_el[2+i]   
+           rhs_cbf[idofTr1]+=rhs_el[4+i]   
+           M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
+           M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
+           M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
+           M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
 
     #boundary 2-3 : x,y dofs
     for i in range(0,ndofV):
         idof0=2*icon[2,iel]+i
         idof1=2*icon[3,iel]+i
         if (bc_fix[idof0] and bc_fix[idof1]):  
-           idofTr0=bc_nb[idof0]-nel+nelx   
-           idofTr1=bc_nb[idof1]-nel+nelx
+           idofTr0=bc_nb[idof0]   
+           idofTr1=bc_nb[idof1]
            rhs_cbf[idofTr0]+=rhs_el[4+i]   
            rhs_cbf[idofTr1]+=rhs_el[6+i]   
            M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
@@ -885,19 +844,19 @@ for iel in range(nel-nelx,nel):
            M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
            M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
 
-    # #boundary 3-0 : x,y dofs
-    # for i in range(0,ndofV):
-    #     idof0=2*icon[3,iel]+i
-    #     idof1=2*icon[0,iel]+i
-    #     if (bc_fix[idof0] and bc_fix[idof1]):  
-    #        idofTr0=bc_nb[idof0]   
-    #        idofTr1=bc_nb[idof1]
-    #        rhs_cbf[idofTr0]+=rhs_el[6+i]   
-    #        rhs_cbf[idofTr1]+=rhs_el[0+i]   
-    #        M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
-    #        M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
-    #        M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
-    #        M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
+    #boundary 3-0 : x,y dofs
+    for i in range(0,ndofV):
+        idof0=2*icon[3,iel]+i
+        idof1=2*icon[0,iel]+i
+        if (bc_fix[idof0] and bc_fix[idof1]):  
+           idofTr0=bc_nb[idof0]   
+           idofTr1=bc_nb[idof1]
+           rhs_cbf[idofTr0]+=rhs_el[6+i]   
+           rhs_cbf[idofTr1]+=rhs_el[0+i]   
+           M_prime[idofTr0,idofTr0]+=M_prime_el[0,0]
+           M_prime[idofTr0,idofTr1]+=M_prime_el[0,1]
+           M_prime[idofTr1,idofTr0]+=M_prime_el[1,0]
+           M_prime[idofTr1,idofTr1]+=M_prime_el[1,1]
 
 # end for iel
 
@@ -914,7 +873,7 @@ print("     -> rhs_cbf (m,M) %.4e %.4e " %(np.min(rhs_cbf),np.max(rhs_cbf)))
 
 sol=sps.linalg.spsolve(sps.csr_matrix(M_prime),rhs_cbf)#,use_umfpack=True)
 
-for i in range(0,nnx):
+for i in range(0,nnp):
     idof=2*i+0
     if bc_fix[idof]:
        tx[i]=sol[bc_nb[idof]] 
@@ -925,453 +884,238 @@ for i in range(0,nnx):
 np.savetxt("tractions_x.ascii",tx)
 np.savetxt("tractions_y.ascii",ty)
 
-plt.plot(tx,label="tx_cbf")
-plt.plot(ty,label="ty_cbf")
-plt.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
-plt.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
-plt.legend()
-plt.savefig("tractions_1.pdf")
+######################################################################
+##### Output plots of tractions
+######################################################################
 
-# ######################################################################
-# ##### Output plots of tractions
-# ######################################################################
+np.savetxt('sigmayy_cbf.ascii',np.array([x[nnp-nnx:nnp],ty[nnp-nnx:nnp]]).T,header='# x,sigmayy')
 
-# fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
+print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
+print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
 
-# #ax1 contains the lower tractions I guess
+np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
 
-# ax1.plot(tx[:nnx],label="$t_x$ (CBF)")
-# ax1.plot(ty[:nnx],label="$t_y$ (CBF)")
-# ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
-# ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
-# ax1.legend()
-# ax1.set_title("Lower Boundary")
+fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
-# ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
-# ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
-# ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
-# ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
-# ax2.legend()
-# ax2.set_title("Upper Boundary")
+#ax1 contains the lower tractions I guess
 
+ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-tx[:nnx],label="$t_x$ (CBF)")
+ax1.plot(-ty[:nnx],label="$t_y$ (CBF)")
+ax1.legend()
+ax1.set_title("Lower Boundary")
 
-# #there's probably a better way of doing this
-# #but I'm not at my best so here's a bit of a hack
-
-# left_ty = []
-# right_ty= []
-# left_tx = []
-# right_tx= []
-# right_y = []
-# left_y  = []
-
-# for i in range(0,nnp):
-#   if x[i]<eps:
-#     left_tx.append(tx[i])
-#     left_ty.append(ty[i])
-#     left_y.append(y[i])
-#   if (Lx-x[i])<eps:
-#     right_tx.append(tx[i])
-#     right_ty.append(ty[i])
-#     right_y.append(y[i])
-
-# right_y=np.array(right_y)
-# left_y=np.array(left_y)
-# left_tx=np.array(left_tx)
-# right_tx=np.array(right_tx)
-# left_ty=np.array(left_ty)
-# right_ty=np.array(right_ty)
-
-# ax3.plot(right_tx,label="$t_x$ (CBF)")
-# ax3.plot(right_ty,label="$t_y$ (CBF)")
-# ax3.plot(sigma_xx(1,right_y),label="$t_x$ analytical")
-# ax3.plot(sigma_yx(1,right_y),label="$t_y$ analytical")
-# ax3.legend()
-# ax3.set_title("Right Boundary")
-
-# ax4.plot(left_tx,label="$t_x$ (CBF)")
-# ax4.plot(left_ty,label="$t_y$ (CBF)")
-# ax4.plot(-sigma_xx(0,left_y),label="$t_x$ analytical")
-# ax4.plot(-sigma_yx(0,left_y),label="$t_y$ analytical")
-# ax4.legend()
-# ax4.set_title("Left Boundary")
-
-# fig.savefig("tractions_CBF.pdf")
-
-# np.savetxt('sigmayy_cbf.ascii',np.array([x[nnp-nnx:nnp],ty[nnp-nnx:nnp]]).T,header='# x,sigmayy')
-
-# print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
-# print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
-
-# np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
-# ##################################################
-# # Plot the C->N tractions and CBF
-# ##################################################
-
-# fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
-
-# #ax1 contains the lower tractions I guess
-
-# ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
-# ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
-# ax1.plot(-tx[:nnx],label="$t_x$ (CBF)")
-# ax1.plot(-ty[:nnx],label="$t_y$ (CBF)")
-# ax1.legend()
-# ax1.set_title("Lower Boundary")
-
-# ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-# ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
-# ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
-# ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
-# ax2.legend()
-# ax2.set_title("Upper Boundary")
+ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
+ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
+ax2.legend()
+ax2.set_title("Upper Boundary")
 
 
-# #there's probably a better way of doing this
-# #but I'm not at my best so here's a bit of a hack
+#there's probably a better way of doing this
+#but I'm not at my best so here's a bit of a hack
 
-# left_ty_cn = []
-# right_ty_cn= []
-# left_tx_cn = []
-# right_tx_cn= []
-# right_y = []
-# left_y  = []
+left_ty_cn = []
+right_ty_cn= []
+left_tx_cn = []
+right_tx_cn= []
+right_y = []
+left_y  = []
 
-# for i in range(0,nnp):
-#   if x[i]<eps:
-#     left_tx_cn.append(exxn1[i]+q1[i])
-#     left_ty_cn.append(exyn1[i])
-#     left_y.append(y[i])
-#   if (Lx-x[i])<eps:
-#     right_tx_cn.append(exxn1[i]+q1[i])
-#     right_ty_cn.append(exyn1[i])
-#     right_y.append(y[i])
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx_cn.append(exxn1[i]+q1[i])
+    left_ty_cn.append(exyn1[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx_cn.append(exxn1[i]+q1[i])
+    right_ty_cn.append(exyn1[i])
+    right_y.append(y[i])
 
-# right_y=np.array(right_y)
-# left_y=np.array(left_y)
-# left_tx_cn=np.array(left_tx_cn)
-# right_tx_cn=np.array(right_tx_cn)
-# left_ty_cn=np.array(left_ty_cn)
-# right_ty_cn=np.array(right_ty_cn)
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx_cn=np.array(left_tx_cn)
+right_tx_cn=np.array(right_tx_cn)
+left_ty_cn=np.array(left_ty_cn)
+right_ty_cn=np.array(right_ty_cn)
 
-# ax3.plot(right_tx_cn,label="$t_x$ (C->N)")
-# ax3.plot(right_ty_cn,label="$t_y$ (C->N)")
-# ax3.plot(right_tx,label="$t_x$ (CBF)")
-# ax3.plot(right_ty,label="$t_y$ (CBF)")
-# ax3.legend()
-# ax3.set_title("Right Boundary")
+left_ty = []
+right_ty= []
+left_tx = []
+right_tx= []
+right_y = []
+left_y  = []
 
-# ax4.plot(-left_tx_cn,label="$t_x$ (C->N)")
-# ax4.plot(-left_ty_cn,label="$t_y$ (C->N)")
-# ax4.plot(-left_tx,label="$t_x$ (CBF)")
-# ax4.plot(-left_ty,label="$t_y$ (CBF)")
-# ax4.legend()
-# ax4.set_title("Left Boundary")
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx.append(tx[i])
+    left_ty.append(ty[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx.append(tx[i])
+    right_ty.append(ty[i])
+    right_y.append(y[i])
 
-# fig.savefig("tractions_CN_CBF.pdf")
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx=np.array(left_tx)
+right_tx=np.array(right_tx)
+left_ty=np.array(left_ty)
+right_ty=np.array(right_ty)
 
-# ##################################################
-# # Plot the C->N tractions
-# ##################################################
+ax3.plot(right_tx_cn,label="$t_x$ (C->N)")
+ax3.plot(right_ty_cn,label="$t_y$ (C->N)")
+ax3.plot(right_tx,label="$t_x$ (CBF)")
+ax3.plot(right_ty,label="$t_y$ (CBF)")
+ax3.legend()
+ax3.set_title("Right Boundary")
 
-# fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
+ax4.plot(-left_tx_cn,label="$t_x$ (C->N)")
+ax4.plot(-left_ty_cn,label="$t_y$ (C->N)")
+ax4.plot(-left_tx,label="$t_x$ (CBF)")
+ax4.plot(-left_ty,label="$t_y$ (CBF)")
+ax4.legend()
+ax4.set_title("Left Boundary")
 
-# #ax1 contains the lower tractions I guess
-
-# ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
-# ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
-# ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
-# ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
-# ax1.legend()
-# ax1.set_title("Lower Boundary")
-
-# ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-# ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
-# ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
-# ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
-# ax2.legend()
-# ax2.set_title("Upper Boundary")
-
-
-# #there's probably a better way of doing this
-# #but I'm not at my best so here's a bit of a hack
-
-# left_ty = []
-# right_ty= []
-# left_tx = []
-# right_tx= []
-# right_y = []
-# left_y  = []
-
-# for i in range(0,nnp):
-#   if x[i]<eps:
-#     left_tx.append(exxn1[i]+q1[i])
-#     left_ty.append(exyn1[i])
-#     left_y.append(y[i])
-#   if (Lx-x[i])<eps:
-#     right_tx.append(exxn1[i]+q1[i])
-#     right_ty.append(exyn1[i])
-#     right_y.append(y[i])
-
-# right_y=np.array(right_y)
-# left_y=np.array(left_y)
-# left_tx=np.array(left_tx)
-# right_tx=np.array(right_tx)
-# left_ty=np.array(left_ty)
-# right_ty=np.array(right_ty)
-
-# ax3.plot(right_tx,label="$t_x$ (C->N)")
-# ax3.plot(right_ty,label="$t_y$ (C->N)")
-# ax3.plot(sigma_xx(1,right_y),label="$t_x$ analytical")
-# ax3.plot(sigma_yx(1,right_y),label="$t_y$ analytical")
-# ax3.legend()
-# ax3.set_title("Right Boundary")
-
-# ax4.plot(-left_tx,label="$t_x$ (C->N)")
-# ax4.plot(-left_ty,label="$t_y$ (C->N)")
-# ax4.plot(-sigma_xx(0,left_y),label="$t_x$ analytical")
-# ax4.plot(-sigma_yx(0,left_y),label="$t_y$ analytical")
-# ax4.legend()
-# ax4.set_title("Left Boundary")
-
-# fig.savefig("tractions_CN.pdf")
+fig.savefig("tractions_CN_CBF.pdf")
 
 
+#####################################################################
+# plot of solution
+#####################################################################
 
-
-
-
-
-# #####################################################################
-# # plot of solution
-# #####################################################################
-
-# filename = 'solution.vtu'
-# vtufile=open(filename,"w")
-# vtufile.write("<VTKFile type='UnstructuredGrid' version='0.1' byte_order='BigEndian'> \n")
-# vtufile.write("<UnstructuredGrid> \n")
-# vtufile.write("<Piece NumberOfPoints=' %5d ' NumberOfCells=' %5d '> \n" %(nnp,nel))
-# #####
-# vtufile.write("<Points> \n")
-# vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e %10e %10e \n" %(x[i],y[i],0.))
-# vtufile.write("</DataArray>\n")
-# vtufile.write("</Points> \n")
-# #####
-# vtufile.write("<CellData Scalars='scalars'>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='exx' Format='ascii'> \n")
+filename = 'solution.vtu'
+vtufile=open(filename,"w")
+vtufile.write("<VTKFile type='UnstructuredGrid' version='0.1' byte_order='BigEndian'> \n")
+vtufile.write("<UnstructuredGrid> \n")
+vtufile.write("<Piece NumberOfPoints=' %5d ' NumberOfCells=' %5d '> \n" %(nnp,nel))
+#####
+vtufile.write("<Points> \n")
+vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e %10e %10e \n" %(x[i],y[i],0.))
+vtufile.write("</DataArray>\n")
+vtufile.write("</Points> \n")
+#####
+vtufile.write("<CellData Scalars='scalars'>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='exx' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%10e\n" % exx[iel])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='eyy' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%10e\n" % eyy[iel])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='exy' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%10e\n" % exy[iel])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='div.v' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%10e\n" % (exx[iel]+eyy[iel]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='p' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%10e\n" % p[iel])
+vtufile.write("</DataArray>\n")
+#--
+# vtufile.write("<DataArray type='Float32' Name='sigma_yy' Format='ascii'> \n")
 # for iel in range (0,nel):
-#     vtufile.write("%10e\n" % exx[iel])
+#     vtufile.write("%10e\n" % sigmayy_el[iel])
 # vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='eyy' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%10e\n" % eyy[iel])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='exy' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%10e\n" % exy[iel])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='div.v' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%10e\n" % (exx[iel]+eyy[iel]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='p' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%10e\n" % p[iel])
-# vtufile.write("</DataArray>\n")
-# #--
-# # vtufile.write("<DataArray type='Float32' Name='sigma_yy' Format='ascii'> \n")
-# # for iel in range (0,nel):
-# #     vtufile.write("%10e\n" % sigmayy_el[iel])
-# # vtufile.write("</DataArray>\n")
 
-# vtufile.write("</CellData>\n")
-# #####
-# vtufile.write("<PointData Scalars='scalars'>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Name='velocity' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e %10e %10e \n" %(u[i],v[i],0.))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Name='tractions' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%20e %20e %20e \n" %(tx[i],ty[i],0.))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='q (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%20e \n" %q1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='q (LS)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %q3[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='p (theoretical)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %pressure(x[i],y[i]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %eyyn1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %eyyn3[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxx (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %sxxn1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxx (theoretical)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %sigma_xx(x[i],y[i]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxx (error)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %(sxxn1[i]-sigma_xx(x[i],y[i])))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='syy (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %syyn1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='syy (theoretical)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %sigma_yy(x[i],y[i]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='syy (error)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %(syyn1[i]-sigma_yy(x[i],y[i])))
-# vtufile.write("</DataArray>\n")
-# #--
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxy (C-N)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %sxyn1[i])
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxy (theoretical)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %sigma_xy(x[i],y[i]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Float32' Name='sxy (error)' Format='ascii'> \n")
-# for i in range(0,nnp):
-#     vtufile.write("%10e \n" %(sxyn1[i]-sigma_xy(x[i],y[i])))
-# vtufile.write("</DataArray>\n")
-# #--
+vtufile.write("</CellData>\n")
+#####
+vtufile.write("<PointData Scalars='scalars'>\n")
+#--
+vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Name='velocity' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e %10e %10e \n" %(u[i],v[i],0.))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' NumberOfComponents='3' Name='tractions' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%20e %20e %20e \n" %(tx[i],ty[i],0.))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='q (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%20e \n" %q1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='q (LS)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %q3[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='eyy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %eyyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='eyy (LS)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %eyyn3[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxx (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sxxn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='syy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %syyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='sxy (C-N)' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %sxyn1[i])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %rho(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='mu' Format='ascii'> \n")
+for i in range(0,nnp):
+    vtufile.write("%10e \n" %mu(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("</PointData>\n")
+#####
+vtufile.write("<Cells>\n")
+#--
+vtufile.write("<DataArray type='Int32' Name='connectivity' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%d %d %d %d\n" %(icon[0,iel],icon[1,iel],icon[2,iel],icon[3,iel]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Int32' Name='offsets' Format='ascii'> \n")
+for iel in range (0,nel):
+    vtufile.write("%d \n" %((iel+1)*m))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Int32' Name='types' Format='ascii'>\n")
+for iel in range (0,nel):
+    vtufile.write("%d \n" %9)
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("</Cells>\n")
+#####
+vtufile.write("</Piece>\n")
+vtufile.write("</UnstructuredGrid>\n")
+vtufile.write("</VTKFile>\n")
+vtufile.close()
 
-
-
-
-# #--
-# print(len(sxxn1),len(eyyn1))
-# # vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
-# # for i in range(0,nnp):
-# #     vtufile.write("%10e \n" %rho[i])
-# # vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("</PointData>\n")
-# #####
-# vtufile.write("<Cells>\n")
-# #--
-# vtufile.write("<DataArray type='Int32' Name='connectivity' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%d %d %d %d\n" %(icon[0,iel],icon[1,iel],icon[2,iel],icon[3,iel]))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Int32' Name='offsets' Format='ascii'> \n")
-# for iel in range (0,nel):
-#     vtufile.write("%d \n" %((iel+1)*m))
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("<DataArray type='Int32' Name='types' Format='ascii'>\n")
-# for iel in range (0,nel):
-#     vtufile.write("%d \n" %9)
-# vtufile.write("</DataArray>\n")
-# #--
-# vtufile.write("</Cells>\n")
-# #####
-# vtufile.write("</Piece>\n")
-# vtufile.write("</UnstructuredGrid>\n")
-# vtufile.write("</VTKFile>\n")
-# vtufile.close()
-# ######################################################################
-# # compute error
-# ######################################################################
-# start = time.time()
-
-# error_u = np.empty(nnp,dtype=np.float64)
-# error_v = np.empty(nnp,dtype=np.float64)
-# error_q = np.empty(nnp,dtype=np.float64)
-# error_p = np.empty(nel,dtype=np.float64)
-
-# for i in range(0,nnp): 
-#     error_u[i]=u[i]-velocity_x(x[i],y[i])
-#     error_v[i]=v[i]-velocity_y(x[i],y[i])
-#     error_q[i]=q[i]-pressure(x[i],y[i])
-
-# for i in range(0,nel): 
-#     error_p[i]=p[i]-pressure(xc[i],yc[i])
-
-# errv=0.
-# errp=0.
-# for iel in range (0,nel):
-#     for iq in [-1,1]:
-#         for jq in [-1,1]:
-#             rq=iq/sqrt3
-#             sq=jq/sqrt3
-#             wq=1.*1.
-#             N[0]=0.25*(1.-rq)*(1.-sq)
-#             N[1]=0.25*(1.+rq)*(1.-sq)
-#             N[2]=0.25*(1.+rq)*(1.+sq)
-#             N[3]=0.25*(1.-rq)*(1.+sq)
-#             dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
-#             dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
-#             dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
-#             dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
-#             jcb=np.zeros((2,2),dtype=np.float64)
-#             for k in range(0,m):
-#                 jcb[0,0]+=dNdr[k]*x[icon[k,iel]]
-#                 jcb[0,1]+=dNdr[k]*y[icon[k,iel]]
-#                 jcb[1,0]+=dNds[k]*x[icon[k,iel]]
-#                 jcb[1,1]+=dNds[k]*y[icon[k,iel]]
-#             jcob=np.linalg.det(jcb)
-#             xq=0.0
-#             yq=0.0
-#             uq=0.0
-#             vq=0.0
-#             for k in range(0,m):
-#                 xq+=N[k]*x[icon[k,iel]]
-#                 yq+=N[k]*y[icon[k,iel]]
-#                 uq+=N[k]*u[icon[k,iel]]
-#                 vq+=N[k]*v[icon[k,iel]]
-#             errv+=((uq-velocity_x(xq,yq))**2+(vq-velocity_y(xq,yq))**2)*wq*jcob
-#             errp+=(p[iel]-pressure(xq,yq))**2*wq*jcob
-
-# errv=np.sqrt(errv)
-# errp=np.sqrt(errp)
-
-
-# print("     -> nel= %6d ; errv= %.8f ; errp= %.8f" %(nel,errv,errp))
-
-# print("compute errors: %.3f s" % (time.time() - start))
 # #####################################################################
 # # plot of solution
 # #####################################################################
