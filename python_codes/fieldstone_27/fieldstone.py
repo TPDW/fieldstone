@@ -660,7 +660,6 @@ M_prime_el =(hx/2.)*np.array([ \
 [1./3.,2./3.]])
 
 for iel in range(0,nel):
-#for iel in range(nel-nnx-1,nel):
 
     #-----------------------
     # compute Kel, Gel, f
@@ -823,6 +822,11 @@ print("     -> tx (m,M) %.4e %.4e " %(np.min(tx),np.max(tx)))
 print("     -> ty (m,M) %.4e %.4e " %(np.min(ty),np.max(ty)))
 
 np.savetxt('tractions.ascii',np.array([x,y,tx,ty]).T,header='# x,y,tx,ty')
+
+
+#Print the y-traction on the top left corner, along with the theoretical value and the error
+print("CBF Traction, Theoretical Traction, Percentage Error")
+print(ty[nnp-nnx],sigmayy_th(x[nnp-nnx],y0),100*abs(ty[nnp-nnx]-sigmayy_th(x[nnp-nnx],y0))/sigmayy_th(x[nnp-nnx],y0))
 
 
 ######################################################################

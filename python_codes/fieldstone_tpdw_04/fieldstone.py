@@ -715,9 +715,14 @@ rhs_cbf = np.zeros(NfemTr,np.float64)
 tx = np.zeros(nnp,np.float64)
 ty = np.zeros(nnp,np.float64)
 
+# M_prime_el =(hx/2.)*np.array([ \
+# [2./3.,1./3.],\
+# [1./3.,2./3.]])
+
 M_prime_el =(hx/2.)*np.array([ \
-[2./3.,1./3.],\
-[1./3.,2./3.]])
+[1,0],\
+[0,1]])
+
 
 CBF_use_smoothed_pressure=False
 

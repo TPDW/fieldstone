@@ -61,13 +61,13 @@ def dNNVds(rq,sq):
 
 
 def sigma_xx(x,y):
-  return x**2*(2*x - 2)*(4*y**3 - 6*y**2 + 2*y) + 2*x*(-x + 1)**2*(4*y**3 - 6*y**2 + 2*y) + x*(-x + 1) -1/6
+  return 2*x**2*(2*x - 2)*(4*y**3 - 6*y**2 + 2*y) + 4*x*(-x + 1)**2*(4*y**3 - 6*y**2 + 2*y) - x*(-x + 1) + 1/6
 
 def sigma_xy(x,y):
-  return x**2*(-x + 1)**2*(12*y**2 - 12*y + 2)/2 - y**2*(-y + 1)**2*(12*x**2 - 12*x + 2)/2
+  return x**2*(-x + 1)**2*(12*y**2 - 12*y + 2) - y**2*(-y + 1)**2*(12*x**2 - 12*x + 2)
 
 def sigma_yy(x,y):
-  return x*(-x + 1) - y**2*(2*y - 2)*(4*x**3 - 6*x**2 + 2*x) - 2*y*(-y + 1)**2*(4*x**3 - 6*x**2 + 2*x) -1/6
+  return -x*(-x + 1) - 2*y**2*(2*y - 2)*(4*x**3 - 6*x**2 + 2*x) - 4*y*(-y + 1)**2*(4*x**3 - 6*x**2 + 2*x) + 1/6
 
 def sigma_yx(x,y):
   return sigma_xy(x,y)
@@ -756,9 +756,13 @@ rhs_cbf = np.zeros(NfemTr,np.float64)
 tx = np.zeros(nnp,np.float64)
 ty = np.zeros(nnp,np.float64)
 
+# M_prime_el =(hx/2.)*np.array([ \
+# [2./3.,1./3.],\
+# [1./3.,2./3.]])
+
 M_prime_el =(hx/2.)*np.array([ \
-[2./3.,1./3.],\
-[1./3.,2./3.]])
+[1,0],\
+[0,1]])
 
 CBF_use_smoothed_pressure=False
 
@@ -798,7 +802,11 @@ for iel in range(0,nel):
             jcbi = np.linalg.inv(jcb)
 
             # compute dNdx & dNdy
+            xq=0
+            yq=0
             for k in range(0, m):
+                xq+=N[k]*x[icon[k,iel]]
+                yq+=N[k]*y[icon[k,iel]]
                 dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
                 dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
 
@@ -1005,15 +1013,15 @@ fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
 #ax1 contains the lower tractions I guess
 
-ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
-ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-2*exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-2*eyyn1[:nnx]+q1[:nnx],label="$t_y$ (C->N)")
 ax1.plot(-tx[:nnx],label="$t_x$ (CBF)")
 ax1.plot(-ty[:nnx],label="$t_y$ (CBF)")
 ax1.legend()
 ax1.set_title("Lower Boundary")
 
-ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(2*exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(2*eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
 ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
 ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
 ax2.legend()
@@ -1032,12 +1040,12 @@ left_y  = []
 
 for i in range(0,nnp):
   if x[i]<eps:
-    left_tx_cn.append(exxn1[i]+q1[i])
-    left_ty_cn.append(exyn1[i])
+    left_tx_cn.append(2*exxn1[i]-q1[i])
+    left_ty_cn.append(2*exyn1[i])
     left_y.append(y[i])
   if (Lx-x[i])<eps:
-    right_tx_cn.append(exxn1[i]+q1[i])
-    right_ty_cn.append(exyn1[i])
+    right_tx_cn.append(2*exxn1[i]-q1[i])
+    right_ty_cn.append(2*exyn1[i])
     right_y.append(y[i])
 
 right_y=np.array(right_y)
@@ -1071,15 +1079,15 @@ fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
 #ax1 contains the lower tractions I guess
 
-ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
-ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(-2*exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-2*eyyn1[:nnx]+q1[:nnx],label="$t_y$ (C->N)")
 ax1.plot(-sigma_xy(x[:nnx],0),label="$t_x$ analytical")
 ax1.plot(-sigma_yy(x[:nnx],0),label="$t_y$ analytical")
 ax1.legend()
 ax1.set_title("Lower Boundary")
 
-ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(2*exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(2*eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
 ax2.plot(sigma_xy(x[(nnp-nnx):],1),label="$t_x$ analytical")
 ax2.plot(sigma_yy(x[(nnp-nnx):],1),label="$t_y$ analytical")
 ax2.legend()
@@ -1098,12 +1106,12 @@ left_y  = []
 
 for i in range(0,nnp):
   if x[i]<eps:
-    left_tx.append(exxn1[i]+q1[i])
-    left_ty.append(exyn1[i])
+    left_tx.append(2*exxn1[i]-q1[i])
+    left_ty.append(2*exyn1[i])
     left_y.append(y[i])
   if (Lx-x[i])<eps:
-    right_tx.append(exxn1[i]+q1[i])
-    right_ty.append(exyn1[i])
+    right_tx.append(2*exxn1[i]-q1[i])
+    right_ty.append(2*exyn1[i])
     right_y.append(y[i])
 
 right_y=np.array(right_y)
