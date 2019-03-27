@@ -851,14 +851,16 @@ for nelx in nelx_list:
     # tx = np.zeros(nnx,np.float64)
     # ty = np.zeros(nnx,np.float64)
 
-    # M_prime_el =(hx/2.)*np.array([ \
-    # [1,0],\
-    # [0,1]])
+    use_mass_lumping=False
 
-    M_prime_el =(hx/2.)*np.array([ \
-    [2/3,1/3],\
-    [1/3,2/3]])
-
+    if use_mass_lumping:
+        M_prime_el =(hx/2.)*np.array([ \
+        [1,0],\
+        [0,1]])
+    else:
+        M_prime_el =(hx/2.)*np.array([ \
+        [2/3,1/3],\
+        [1/3,2/3]])
 
 
     for iel in range(0,nel):
@@ -1158,10 +1160,6 @@ for nelx in nelx_list:
     L1_norm_list_LS.append(L1_norm_LS)
     L2_norm_list_LS.append(L2_norm_LS)
 
-
-
-
-
 fig_CN.savefig("nelx_plots.pdf")
 
 
@@ -1179,6 +1177,9 @@ ax.plot(log_hx,np.log(L1_norm_list_LS),label="L1 LS")
 ax.plot(log_hx,np.log(L2_norm_list_LS),label="L2 LS")
 ax.grid()
 ax.legend()
+ax.set_xlabel("log(1/nnx)")
+ax.set_ylabel("Norm Magnitude")
+ax.set_title("Convergence Rates for Traction Norms")
 fig.savefig("convergence.pdf")
 
 
@@ -1230,95 +1231,99 @@ print("-----------------------------")
 # # Plot the C->N tractions and CBF
 # ##################################################
 
-# fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
+fig,((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(10,10))
 
-# #ax1 contains the lower tractions I guess
+#ax1 contains the lower tractions I guess
 
-# ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
-# ax1.plot(-eyyn1[:nnx]-q1[:nnx],label="$t_y$ (C->N)")
-# ax1.plot(-tx[:nnx],label="$t_x$ (CBF)")
-# ax1.plot(-ty[:nnx],label="$t_y$ (CBF)")
-# ax1.legend()
-# ax1.set_title("Lower Boundary")
+ax1.plot(-exyn1[:nnx],label="$t_x$ (C->N)")
+ax1.plot(-2*eyyn1[:nnx]+q1[:nnx],label="$t_y$ (C->N)")
+ax1.plot(tx[:nnx],label="$t_x$ (CBF)")
+ax1.plot(ty[:nnx],label="$t_y$ (CBF)")
+ax1.legend()
+ax1.set_title("Lower Boundary")
 
-# ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
-# ax2.plot(eyyn1[(nnp-nnx):]+q1[(nnp-nnx):],label="$t_y$ (C->N)")
-# ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
-# ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
-# ax2.legend()
-# ax2.set_title("Upper Boundary")
-
-
-# #there's probably a better way of doing this
-# #but I'm not at my best so here's a bit of a hack
-# left_ty = []
-# right_ty= []
-# left_tx = []
-# right_tx= []
-# right_y = []
-# left_y  = []
-
-# for i in range(0,nnp):
-#   if x[i]<eps:
-#     left_tx.append(tx[i])
-#     left_ty.append(ty[i])
-#     left_y.append(y[i])
-#   if (Lx-x[i])<eps:
-#     right_tx.append(tx[i])
-#     right_ty.append(ty[i])
-#     right_y.append(y[i])
-
-# right_y=np.array(right_y)
-# left_y=np.array(left_y)
-# left_tx=np.array(left_tx)
-# right_tx=np.array(right_tx)
-# left_ty=np.array(left_ty)
-# right_ty=np.array(right_ty)
+ax2.plot(exyn1[(nnp-nnx):],label="$t_x$ (C->N)")
+ax2.plot(2*eyyn1[(nnp-nnx):]-q1[(nnp-nnx):],label="$t_y$ (C->N)")
+ax2.plot(tx[(nnp-nnx):],label="$t_x$ (CBF)")
+ax2.plot(ty[(nnp-nnx):],label="$t_y$ (CBF)")
+ax2.plot(sigmayy_th(x[(nnp-nnx):],y0),label="$t_y$ (Theoretical)")
+ax2.legend()
+ax2.set_title("Upper Boundary")
 
 
+#there's probably a better way of doing this
+#but I'm not at my best so here's a bit of a hack
+left_ty = []
+right_ty= []
+left_tx = []
+right_tx= []
+right_y = []
+left_y  = []
 
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx.append(tx[i])
+    left_ty.append(ty[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx.append(tx[i])
+    right_ty.append(ty[i])
+    right_y.append(y[i])
 
-# left_ty_cn = []
-# right_ty_cn= []
-# left_tx_cn = []
-# right_tx_cn= []
-# right_y = []
-# left_y  = []
-
-# for i in range(0,nnp):
-#   if x[i]<eps:
-#     left_tx_cn.append(exxn1[i]+q1[i])
-#     left_ty_cn.append(exyn1[i])
-#     left_y.append(y[i])
-#   if (Lx-x[i])<eps:
-#     right_tx_cn.append(exxn1[i]+q1[i])
-#     right_ty_cn.append(exyn1[i])
-#     right_y.append(y[i])
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx=np.array(left_tx)
+right_tx=np.array(right_tx)
+left_ty=np.array(left_ty)
+right_ty=np.array(right_ty)
 
 
 
-# right_y=np.array(right_y)
-# left_y=np.array(left_y)
-# left_tx_cn=np.array(left_tx_cn)
-# right_tx_cn=np.array(right_tx_cn)
-# left_ty_cn=np.array(left_ty_cn)
-# right_ty_cn=np.array(right_ty_cn)
+
+left_ty_cn = []
+right_ty_cn= []
+left_tx_cn = []
+right_tx_cn= []
+right_y = []
+left_y  = []
+
+for i in range(0,nnp):
+  if x[i]<eps:
+    left_tx_cn.append(2*exxn1[i]-q1[i])
+    left_ty_cn.append(exyn1[i])
+    left_y.append(y[i])
+  if (Lx-x[i])<eps:
+    right_tx_cn.append(2*exxn1[i]-q1[i])
+    right_ty_cn.append(exyn1[i])
+    right_y.append(y[i])
 
 
-# ax3.plot(right_tx_cn,label="$t_x$ (C->N)")
-# ax3.plot(right_ty_cn,label="$t_y$ (C->N)")
-# ax3.plot(right_tx,label="$t_x$ (CBF)")
-# ax3.plot(right_ty,label="$t_y$ (CBF)")
-# ax3.legend()
-# ax3.set_title("Right Boundary")
 
-# ax4.plot(-left_tx_cn,label="$t_x$ (C->N)")
-# ax4.plot(-left_ty_cn,label="$t_y$ (C->N)")
-# ax4.plot(-left_tx,label="$t_x$ (CBF)")
-# ax4.plot(-left_ty,label="$t_y$ (CBF)")
-# ax4.legend()
-# ax4.set_title("Left Boundary")
+right_y=np.array(right_y)
+left_y=np.array(left_y)
+left_tx_cn=np.array(left_tx_cn)
+right_tx_cn=np.array(right_tx_cn)
+left_ty_cn=np.array(left_ty_cn)
+right_ty_cn=np.array(right_ty_cn)
 
-# fig.savefig("tractions_CN_CBF.pdf")
+
+ax3.plot(right_tx_cn,label="$t_x$ (C->N)")
+ax3.plot(right_ty_cn,label="$t_y$ (C->N)")
+ax3.plot(right_tx,label="$t_x$ (CBF)")
+ax3.plot(right_ty,label="$t_y$ (CBF)")
+ax3.legend()
+ax3.set_title("Right Boundary")
+
+ax4.plot(-left_tx_cn,label="$t_x$ (C->N)")
+ax4.plot(-left_ty_cn,label="$t_y$ (C->N)")
+ax4.plot(left_tx,label="$t_x$ (CBF)")
+ax4.plot(left_ty,label="$t_y$ (CBF)")
+ax4.legend()
+ax4.set_title("Left Boundary")
+
+
+fig.suptitle("Tractions for the Donea and Huerta benchmark (nelx=%d)".format(nelx))
+
+fig.savefig("tractions_CN_CBF.pdf")
 
 

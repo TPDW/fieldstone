@@ -765,6 +765,8 @@ M_prime_el =(hx/2.)*np.array([ \
 [0,1]])
 
 CBF_use_smoothed_pressure=False
+use_theoretical_pressure=False
+
 
 for iel in range(0,nel):
 
@@ -842,7 +844,6 @@ for iel in range(0,nel):
     else:
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*p[iel]
 
-    use_theoretical_pressure=True
     if use_theoretical_pressure:
       rhs_el=-f_el+K_el.dot(v_el)+G_el[:,0]*pressure(x[icon[k,iel]]+hx/2.0,y[icon[k,iel]]+hy/2.0)
 
