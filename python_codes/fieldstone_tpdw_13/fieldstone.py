@@ -1288,7 +1288,11 @@ for nelx in nelx_list:
       vtufile.write("%10e \n" %(sxyn1[i]-sigma_xy(x[i],y[i])))
   vtufile.write("</DataArray>\n")
   #--
-
+  vtufile.write("<DataArray type='Float32' Name='direct strain rhs' Format='ascii'> \n")
+  for i in range (0,nnp):
+      vtufile.write("%10e\n" % f_rhs[i])
+  vtufile.write("</DataArray>\n")
+  #--
 
 
 

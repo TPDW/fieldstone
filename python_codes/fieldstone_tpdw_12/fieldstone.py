@@ -1230,11 +1230,11 @@ for iel in range(0,nel):
                 d_el[3,i]=dNdy[int((i-1)/2)]
 
 
-              print(beta_el)
-              print("")
-              print(d_el)
+              # print(beta_el)
+              # print("")
+              # print(d_el)
 
-              Kappa_el+=np.matmul(beta_el,d_el)
+              Kappa_el+=2*viscosity*np.matmul(beta_el,d_el)
 
 
         # end for jq
@@ -1244,7 +1244,6 @@ for iel in range(0,nel):
     # print(Kappa_el)
     # print(" ")
     #Assemble the matrices
-    fwef
 
     for k1 in range(0,m):
         for i1 in range(0,ndofV):
@@ -1263,7 +1262,7 @@ p_th=np.zeros(nel)
 for iel in range(nel):
   p_th[iel]=pressure(x[icon[0,iel]]+hx/2,y[icon[0,iel]]+hy/2)
 
-#f_rhs += np.matmul(G_mat,p_th)
+f_rhs += np.matmul(G_mat,p_th)
 
 #################################################################
 # impose boundary conditions
@@ -1445,25 +1444,40 @@ for i in range(0,nnp):
 vtufile.write("</DataArray>\n")
 #--
 vtufile.write("<DataArray type='Float32' Name='exx direct' Format='ascii'> \n")
-for iel in range (0,nnp):
-    vtufile.write("%10e\n" % exx_direct[iel])
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % exx_direct[i])
 vtufile.write("</DataArray>\n")
 #--
 vtufile.write("<DataArray type='Float32' Name='eyy direct' Format='ascii'> \n")
-for iel in range (0,nnp):
-    vtufile.write("%10e\n" % eyy_direct[iel])
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % eyy_direct[i])
 vtufile.write("</DataArray>\n")
 #--
 vtufile.write("<DataArray type='Float32' Name='exy direct' Format='ascii'> \n")
-for iel in range (0,nnp):
-    vtufile.write("%10e\n" % exy_direct[iel])
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % exy_direct[i])
 vtufile.write("</DataArray>\n")
 #--
-
-
-
+vtufile.write("<DataArray type='Float32' Name='direct strain rhs_x' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % f_rhs[2*i])
+vtufile.write("</DataArray>\n")
 #--
-print(len(sxxn1),len(eyyn1))
+vtufile.write("<DataArray type='Float32' Name='direct strain rhs_y' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % f_rhs[2*i+1])
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='bx' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % bx(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
+vtufile.write("<DataArray type='Float32' Name='by' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % by(x[i],y[i]))
+vtufile.write("</DataArray>\n")
+#--
 # vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
 # for i in range(0,nnp):
 #     vtufile.write("%10e \n" %rho[i])

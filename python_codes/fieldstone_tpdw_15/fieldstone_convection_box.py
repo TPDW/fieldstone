@@ -33,7 +33,7 @@ ndofV=2      # number of degrees of freedom per node
 ndofT=1      # number of degrees of freedom per node
 Lx=1.        # horizontal extent of the domain 
 Ly=1.        # vertical extent of the domain 
-Ra=1e5       # Rayleigh number
+Ra=1e4       # Rayleigh number
 alpha=1e-2   # thermal expansion coefficient
 hcond=1.     # thermal conductivity
 hcapa=1.     # heat capacity
@@ -43,7 +43,7 @@ CFL=1.       # CFL number
 gy=-Ra/alpha # vertical component of gravity vector
 penalty=1.e7 # penalty coefficient value
 nstep=2000   # maximum number of timestep   
-tol=2e-5
+tol=1e-7
 
 Nu_prev = 0
 vrms_prev=0
@@ -54,8 +54,8 @@ if int(len(sys.argv) == 3):
    nelx = int(sys.argv[1])
    nely = int(sys.argv[2])
 else:
-   nelx = 64
-   nely = 64
+   nelx = 32
+   nely = 32
 
 assert (nelx>0.), "nnx should be positive" 
 assert (nely>0.), "nny should be positive" 
@@ -533,6 +533,8 @@ for istep in range(0,nstep):
     # compute Nusselt number at top
     #################################################################
 
+    Nusselt_el=np.zeros(nelx)
+    counter=0
     for iel in range(0,nel):
         qy=0.
         rq=0.
@@ -556,6 +558,8 @@ for istep in range(0,nstep):
             qy+=-hcond*dNdy[k]*T[icon[k,iel]]
         if y[icon[3,iel]]>Ly-eps:
            Nusselt[istep]+=qy*hx
+           Nusselt_el[counter]=qy
+           counter+=1
 
     print("time= %.6f ; Nusselt= %.6f" %(time[istep],Nusselt[istep]))
 
@@ -724,7 +728,8 @@ for istep in range(0,nstep):
 
     if (istep%20 == 0):
         fig,ax=plt.subplots()
-        ax.plot(dTdy_CBF[nnp-nnx:nnp])
+        ax.plot(dTdy_CBF[nnp-nnx:nnp],label="CBF flux")
+        ax.plot(Nusselt_el,label="elemental Flux")
         fig.savefig("top_flux_"+str(istep)+".pdf")
 
 
@@ -943,7 +948,6 @@ axes[2][3].set_ylabel('$Nu$')
 plt.subplots_adjust(hspace=0.5)
 
 plt.savefig('solution_convection_box.pdf', bbox_inches='tight')
-plt.show()
 
 print("-----------------------------")
 print("------------the end----------")

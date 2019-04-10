@@ -1278,12 +1278,17 @@ for i in range(0,nnp):
     vtufile.write("%10e \n" %(sxyn1[i]-sigma_xy(x[i],y[i])))
 vtufile.write("</DataArray>\n")
 #--
-
-
-
-
+vtufile.write("<DataArray type='Float32' Name='direct strain rhs_x' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % f_rhs[2*i])
+vtufile.write("</DataArray>\n")
 #--
-print(len(sxxn1),len(eyyn1))
+vtufile.write("<DataArray type='Float32' Name='direct strain rhs_y' Format='ascii'> \n")
+for i in range (0,nnp):
+    vtufile.write("%10e\n" % f_rhs[2*i+1])
+vtufile.write("</DataArray>\n")
+#--
+
 # vtufile.write("<DataArray type='Float32' Name='rho' Format='ascii'> \n")
 # for i in range(0,nnp):
 #     vtufile.write("%10e \n" %rho[i])

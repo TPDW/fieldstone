@@ -595,8 +595,8 @@ for nelx in nelx_list:
   np.savetxt('q_C-N.ascii',np.array([x,y,q1]).T,header='# x,y,q1')
   np.savetxt('strainrate_C-N.ascii',np.array([x,y,exxn1,eyyn1,exyn1]).T,header='# x,y,exxn1,eyyn1,exyn1')
 
-  sxxn1=exxn1+q1
-  syyn1=eyyn1+q1
+  sxxn1=2*exxn1-q1
+  syyn1=2*eyyn1-q1
   sxyn1=exyn1
 
   #####################################################################
