@@ -1,0 +1,20 @@
+This is just going to be a .txt file detailing which fieldstone is which
+01 - donea and huerta full pressure
+02 - other benchmark that doesn't work
+03 - also donea and huerta, unclear if different from 01
+04 - sinking ball
+05 - d&h penalty
+06 - cbf zhong
+07 - cbf zhong - sides separated 
+08 - attempted own benchmark
+09 - cbf on prescribed velocity field
+10 - penalty method zhong convergence
+11 - ful zhong convergence
+12 - d&h penalty - not sure why this exists
+13 - d&h full convergence
+14 - d&h penalty convergence
+15 - convection in a box
+16 - temperature cbf w/ prescibed temp
+17 - traction cbf w/ prescribe velocity/pressure
+18 - temp cbf w/ temp solve
+19 - annulus cbf tractions

@@ -82,7 +82,7 @@ if int(len(sys.argv) == 3):
    nelr = int(sys.argv[1])
    visu = int(sys.argv[2])
 else:
-   nelr = 32
+   nelr = 8
    visu = 1
 
 assert (nelr>0.), "nnx should be positive" 

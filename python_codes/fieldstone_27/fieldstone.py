@@ -84,7 +84,7 @@ gy=-1
 pnormalise=True
 viscosity=1  # dynamic viscosity \mu
 
-y0=62./64.
+y0=59./64.
 rho_alpha=64.
 
 hx=Lx/nelx
