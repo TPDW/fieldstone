@@ -49,7 +49,7 @@ m=4          # number of nodes making up an element
 ndofV=2      # number of degrees of freedom per node
 ndofT=1      # number of degrees of freedom per node
 Lx=1.        # horizontal extent of the domain 
-Ly=0.5       # vertical extent of the domain 
+Ly=0.25       # vertical extent of the domain 
 
 hcond=1.     # thermal conductivity
 hcapa=1.     # heat capacity
@@ -66,7 +66,7 @@ rho0=1       # reference density
 #    nelx = 64
 #    nely = 64
 
-nelx_list = [16,24,32,40,48,56,64]
+nelx_list = [16,24,32,40,48,56,64,128,256]
 
 Nusselt_CBF_list=[]
 Nusselt_elemental_list=[]
@@ -90,7 +90,7 @@ for nelx in nelx_list:
     NfemT=nnp*ndofT  # Total number of degrees of temperature freedom
 
     offset_x=3.0
-    offset_y=0.5
+    offset_y=0.75
 
     #####################################################################
     # grid point setup 

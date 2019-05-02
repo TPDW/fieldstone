@@ -82,7 +82,7 @@ m=4          # number of nodes making up an element
 ndofV=2      # number of degrees of freedom per node
 ndofT=1      # number of degrees of freedom per node
 
-ibench=2
+ibench=0
 
 if ibench==0:
     Lx=1.        # horizontal extent of the domain 
