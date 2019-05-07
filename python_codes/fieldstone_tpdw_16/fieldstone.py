@@ -66,7 +66,7 @@ rho0=1       # reference density
 #    nelx = 64
 #    nely = 64
 
-nelx_list = [16,24,32,40,48,56,64,128,256]
+nelx_list = [16,24,32,40,48,56,64,128]
 
 Nusselt_CBF_list=[]
 Nusselt_elemental_list=[]

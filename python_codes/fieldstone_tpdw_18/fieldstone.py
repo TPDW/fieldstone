@@ -19,6 +19,8 @@ def velocity_x(x,y,ibench):
         return 0 
     elif ibench == 2:
         return 0
+    elif ibench == 3:
+        return u_0*(1-y**2)
     else:
         print("no other benchmarks yet implemented")
 
@@ -29,12 +31,14 @@ def velocity_y(x,y,ibench):
         return 0
     elif ibench == 2:
         return 0
+    elif ibench == 3:
+        return 0
     else:
         print("no other benchmarks yet implemented")
 
 
 def heating(x,y,ibench):
-    if ibench == 0  or ibench==1:
+    if ibench == 0  or ibench==1 or ibench==3:
         return 0
     elif ibench==2:
         return 1
@@ -48,6 +52,15 @@ def temp_analytical(x,y,ibench):
         return y
     elif ibench==2:
         return 1.5*y-0.5*y**2
+    elif ibench==3:
+        return 1/3*(1-y**4)*u_0**2*eta/hcond
+
+def analytical_shear_heating(x,y,ibench):
+    if ibench == 3:
+        return 4*eta*y**2*u_0**2
+    else:
+        return 0
+
 
 
 
@@ -82,7 +95,7 @@ m=4          # number of nodes making up an element
 ndofV=2      # number of degrees of freedom per node
 ndofT=1      # number of degrees of freedom per node
 
-ibench=0
+ibench=3
 
 if ibench==0:
     Lx=1.        # horizontal extent of the domain 
@@ -96,10 +109,21 @@ elif ibench==1 or ibench==2:
     offset_x=0
     offset_y=0
 
+elif ibench==3:
+    Lx=2
+    Ly=2
+    offset_x=-1
+    offset_y=-1
+
+
 
 hcond=1.     # thermal conductivity
 hcapa=1.     # heat capacity
 rho0=1       # reference density
+
+eta=1        # viscocity
+
+u_0=1
 
 if ibench==0:
     Nusselt_analytical=74/3
@@ -107,6 +131,8 @@ elif ibench==1:
     Nusselt_analytical=-1
 elif ibench==2:
     Nusselt_analytical=-0.5
+elif ibench==3:
+    Nusselt_analytical=8/3*eta*u_0**2/hcond
 
 
 
@@ -193,13 +219,16 @@ for nelx in nelx_list:
                 bc_fixT[i]=True ; bc_valT[i]=0.
             elif ibench==1 or ibench ==2:
                 bc_fixT[i]=True ; bc_valT[i]=1
-            # print(i)
-            # print(y[i])
+            elif ibench==3:
+                bc_fixT[i]=True ; bc_valT[i]=0
         if y[i]<(offset_y+eps):
             if ibench==0:
                 bc_fixT[i]=True ; bc_valT[i]=y[i]*x[i]**2-y[i]**3*x[i]**2
             if ibench==1 or ibench ==2:
                 bc_fixT[i]=True ; bc_valT[i]=0
+            elif ibench==3:
+                bc_fixT[i]=True ; bc_valT[i]=0        
+
         if x[i]<(offset_x+eps):
             if ibench==0:
                 bc_fixT[i]=True ; bc_valT[i]=y[i]*x[i]**2-y[i]**3*x[i]**2
@@ -313,6 +342,8 @@ for nelx in nelx_list:
                 # compute dNdx & dNdy
                 vel[0,0]=0.
                 vel[0,1]=0.
+                xq=0
+                yq=0
                 for k in range(0,m):
                     vel[0,0]+=N_mat[k,0]*u[icon[k,iel]]
                     vel[0,1]+=N_mat[k,0]*v[icon[k,iel]]
@@ -320,6 +351,8 @@ for nelx in nelx_list:
                     dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
                     B_mat[0,k]=dNdx[k]
                     B_mat[1,k]=dNdy[k]
+                    xq+=x[icon[k,iel]]*N_mat[k,0]
+                    yq+=y[icon[k,iel]]*N_mat[k,0]
 
                 # compute mass matrix
                 #MM=N_mat.dot(N_mat.T)*rho0*hcapa*wq*jcob
@@ -332,7 +365,7 @@ for nelx in nelx_list:
 
                 a_el=(Ka+Kd)#*dt +MM
 
-                b_el=N_mat*heating(0,0,ibench)*wq*jcob
+                b_el=N_mat*(heating(xq,yq,ibench)+analytical_shear_heating(xq,yq,ibench))*wq*jcob
 
                 # assemble matrix A_mat and right hand side rhs
                 for k1 in range(0,m):
@@ -643,7 +676,7 @@ for nelx in nelx_list:
 
 
     L1_temp_list.append(L1_temp)
-    L2_temp_list.append(L2_temp)
+    L2_temp_list.append(np.sqrt(L2_temp))
 
 filename = 'solution.vtu'
 vtufile=open(filename,"w")
@@ -786,8 +819,8 @@ plt.plot(hx_list,np.log(np.array(L2_temp_list)),label="L2")
 plt.legend()
 plt.savefig("temp_conv.pdf")
 
-print ("The L1 norm slope is %10f" % get_regression(hx_list,np.log(np.array(L1_temp_list))))
-print ("The L2 norm slope is %10f" % get_regression(hx_list,np.log(np.array(L2_temp_list))))
+print ("The L1 temperature norm slope is %10f" % get_regression(hx_list,np.log(np.array(L1_temp_list))))
+print ("The L2 temperature norm slope is %10f" % get_regression(hx_list,np.log(np.array(L2_temp_list))))
 
 print("-----------------------------")
 print("------------the end----------")

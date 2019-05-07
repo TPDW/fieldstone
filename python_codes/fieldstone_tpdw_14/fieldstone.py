@@ -1577,11 +1577,11 @@ for nelx in nelx_list:
   #print(L1_norm_list_CBF)
   for i in range(8):
     L1_norm_list_CBF[i].append(L1_norm_CBF[i])
-    L2_norm_list_CBF[i].append(L2_norm_CBF[i])
+    L2_norm_list_CBF[i].append(np.sqrt(L2_norm_CBF[i]))
     L1_norm_list_CN[i].append(L1_norm_CN[i])
-    L2_norm_list_CN[i].append(L2_norm_CN[i])
+    L2_norm_list_CN[i].append(np.sqrt(L2_norm_CN[i]))
     L1_norm_list_LS[i].append(L1_norm_LS[i])
-    L2_norm_list_LS[i].append(L2_norm_LS[i])
+    L2_norm_list_LS[i].append(np.sqrt(L2_norm_LS[i]))
     # print(L1_norm_CBF[i])
     # print(L1_norm_list_CBF[i])
 

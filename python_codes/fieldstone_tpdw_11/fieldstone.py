@@ -916,11 +916,11 @@ for nelx in nelx_list:
 
 
   L1_norm_list_CBF.append(L1_norm_CBF)
-  L2_norm_list_CBF.append(L2_norm_CBF)
+  L2_norm_list_CBF.append(np.sqrt(L2_norm_CBF))
   L1_norm_list_CN.append(L1_norm_CN)
-  L2_norm_list_CN.append(L2_norm_CN)
+  L2_norm_list_CN.append(np.sqrt(L2_norm_CN))
   L1_norm_list_LS.append(L1_norm_LS)
-  L2_norm_list_LS.append(L2_norm_LS)
+  L2_norm_list_LS.append(np.sqrt(L2_norm_LS))
 
 fig_CN.savefig("nelx_plots.pdf")
 

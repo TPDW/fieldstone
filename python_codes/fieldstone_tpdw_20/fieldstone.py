@@ -903,13 +903,13 @@ for nelr in nelr_list:
 
     L1_tx_inner_list.append(L1_tx_inner)
     L1_ty_inner_list.append(L1_ty_inner)
-    L2_tx_inner_list.append(L2_tx_inner)
-    L2_ty_inner_list.append(L2_ty_inner)
+    L2_tx_inner_list.append(np.sqrt(L2_tx_inner))
+    L2_ty_inner_list.append(np.sqrt(L2_ty_inner))
 
     L1_tx_outer_list.append(L1_tx_outer)
     L1_ty_outer_list.append(L1_ty_outer)
-    L2_tx_outer_list.append(L2_tx_outer)
-    L2_ty_outer_list.append(L2_ty_outer)
+    L2_tx_outer_list.append(np.sqrt(L2_tx_outer))
+    L2_ty_outer_list.append(np.sqrt(L2_ty_outer))
 
 
 hr_list=1/(np.array(nelr_list)+1)

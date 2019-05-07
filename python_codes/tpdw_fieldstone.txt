@@ -19,3 +19,4 @@ This is just going to be a .txt file detailing which fieldstone is which
 18 - temp cbf w/ temp solve
 19 - annulus cbf tractions
 20 - annulus cbf tractions convergence
+21 - instantaneous temp solver without cbf
