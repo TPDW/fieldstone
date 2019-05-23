@@ -525,6 +525,9 @@ for nelx in nelx_list:
                 Ka=N_mat.dot(vel.dot(B_mat))*rho0*hcapa*wq*jcob
 
                 rhs_el += -MM.dot(T_el_dot) - (Ka+Kd).dot(T_el)
+                rhs_el += N_mat[:,0]*(heating(xq,yq,ibench)+analytical_shear_heating(xq,yq,ibench))*wq*jcob
+
+
 
         for k in range(0,m):
             rhs_cbf_domain[icon[k,iel]]+=rhs_el[k]

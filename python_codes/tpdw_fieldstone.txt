@@ -9,7 +9,7 @@ This is just going to be a .txt file detailing which fieldstone is which
 08 - attempted own benchmark
 09 - cbf on prescribed velocity field
 10 - penalty method zhong convergence
-11 - ful zhong convergence
+11 - full zhong convergence
 12 - d&h penalty - internal nodal derivatives
 13 - d&h full convergence
 14 - d&h penalty convergence
@@ -20,3 +20,8 @@ This is just going to be a .txt file detailing which fieldstone is which
 19 - annulus cbf tractions
 20 - annulus cbf tractions convergence
 21 - instantaneous temp solver without cbf
+22 - Q2Q1 traction CBF
+23 - Q3Q2 traction CBF
+24 - Q2Q1 traction CBF convergence
+25 - Q3Q2 traction CBF convergence
+26 - Nodal Derivatives

@@ -1,0 +1,32 @@
+rm -f errors
+rm -f errors_p
+rm -f errors_exx
+rm -f errors_eyy
+rm -f errors_exy
+rm -f errors_exx_markers
+rm -f errors_eyy_markers
+rm -f errors_exy_markers
+rm -f condition_numbers
+
+
+#for n in 12 15 16 17 18 19 20 21 22 23 24 27 32 40 48 56 63 64 72 73 74 75 80 90 ; do # 100 110; do
+for n in 12 15 16 17 18 19 20 21 22 23 24 27 32 40 48 56 64 72 80 90 ; do # 100 110; do
+
+    echo $n
+    python3 fieldstone.py   $n   $n 0 > opla
+    grep errv opla >> errors
+    grep errexx opla >> errors_exx
+    grep erreyy opla >> errors_eyy
+    grep errexy opla >> errors_exy
+    grep "condition number" opla >> condition_numbers
+    grep errp0   opla >> errors_p
+    #grep exx opla | grep markers >> errors_exx_markers
+    #grep eyy opla | grep markers >> errors_eyy_markers
+    #grep exy opla | grep markers >> errors_exy_markers
+    #grep sr  opla | grep markers >> errors_sr_markers
+
+done
+
+rm opla
+
+
