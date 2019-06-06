@@ -18,6 +18,10 @@ plot[][]\
 'errors_exx' u (1./sqrt($3)):7  w l t 'exx_1',\
 'errors_exx' u (1./sqrt($3)):8  w l t 'exx_2',\
 'errors_exx' u (1./sqrt($3)):9  w l t 'exx_3',\
+'errors_exx' u (1./sqrt($3)):10 w l t 'exx_4',\
+'errors_exx' u (1./sqrt($3)):11 w l t 'exx_5',\
+'errors_exx' u (1./sqrt($3)):12 w l t 'exx_6',\
+'errors_exx' u (1./sqrt($3)):13 w l t 'exx_7',\
 x**1/15.  w l lt 2 lc 0 dt 3 t 'h^1', \
 x**1.5/60. w l lt 1 lc 0 dt 2 t 'h^{1.5}',\
 x**2/25  w l lt 1 lc 0 dt 1 t 'h^2',\
@@ -30,6 +34,10 @@ plot[][]\
 'errors_eyy' u (1./sqrt($3)):7  w l t 'eyy_1',\
 'errors_eyy' u (1./sqrt($3)):8  w l t 'eyy_2',\
 'errors_eyy' u (1./sqrt($3)):9  w l t 'eyy_3',\
+'errors_eyy' u (1./sqrt($3)):10 w l t 'eyy_4',\
+'errors_eyy' u (1./sqrt($3)):11 w l t 'eyy_5',\
+'errors_eyy' u (1./sqrt($3)):12 w l t 'eyy_6',\
+'errors_eyy' u (1./sqrt($3)):13 w l t 'eyy_7',\
 x**1/15.  w l lt 2 lc 0 dt 3 t 'h^1', \
 x**1.5/60. w l lt 1 lc 0 dt 2 t 'h^{1.5}',\
 x**2/25  w l lt 1 lc 0 dt 1 t 'h^2',\
@@ -41,6 +49,10 @@ plot[][]\
 'errors_exy' u (1./sqrt($3)):7  w l t 'exy_1',\
 'errors_exy' u (1./sqrt($3)):8  w l t 'exy_2',\
 'errors_exy' u (1./sqrt($3)):9  w l t 'exy_3',\
+'errors_exy' u (1./sqrt($3)):10 w l t 'exy_4',\
+'errors_exy' u (1./sqrt($3)):11 w l t 'exy_5',\
+'errors_exy' u (1./sqrt($3)):12 w l t 'exy_6',\
+'errors_exy' u (1./sqrt($3)):13 w l t 'exy_7',\
 x**3/10 w l lt 1 lc 0 dt 5 t 'h^{3}',\
 x**2/30   w l lt 1 lc 0 dt 2 t 'h^2',\
 x**1.5/8. w l lt 1 lc 0 dt 3 t 'h^{1.5}',\
@@ -99,7 +111,18 @@ set title "condition number"
 set output 'condition_number.pdf'
 
 plot[][]\
-'condition_numbers' u (1./sqrt($3)):7 w lp t 'condition number'
+'condition_numbers' u (1./sqrt($3)):8  w lp t 'condition number 1',\
+'condition_numbers' u (1./sqrt($3)):9  w lp t 'condition number 2',\
+'condition_numbers' u (1./sqrt($3)):10 w lp t 'condition number 3',\
+'condition_numbers' u (1./sqrt($3)):11 w lp t 'condition number 4' 
+
+set output 'condition_number_max.pdf'
+
+plot[][]\
+'condition_numbers_max' u (1./sqrt($3)):8  w lp t 'condition number 1',\
+'condition_numbers_max' u (1./sqrt($3)):9  w lp t 'condition number 2',\
+'condition_numbers_max' u (1./sqrt($3)):10 w lp t 'condition number 3',\
+'condition_numbers_max' u (1./sqrt($3)):11 w lp t 'condition number 4' 
 
 
 
@@ -113,10 +136,18 @@ plot[][]\
 
 
 
+set ylabel "time"
+set xlabel "nel"
+set title "time1"
+set output 'time.pdf'
 
-
-
-
+plot [][]\
+'time1' u (sqrt($3)):6 w lp t 'time1',\
+'time2' u (sqrt($3)):6 w lp t 'time2',\
+'time3' u (sqrt($3)):8 w lp t 'time3',\
+'time4' u (sqrt($3)):8 w lp t 'time4',\
+'time5' u (sqrt($3)):8 w lp t 'time5',\
+'time6' u (sqrt($3)):8 w lp t 'time6'
 
 
 
@@ -151,7 +182,6 @@ plot[][]\
 'errors_exy_markers' u (1./sqrt($2)):(abs($9))  w l t 'exy_2',\
 'errors_exy_markers' u (1./sqrt($2)):(abs($10)) w l t 'exy_3',\
 'errors_exy_markers' u (1./sqrt($2)):(abs($11)) w l t 'exy_4'
-
 
 
 

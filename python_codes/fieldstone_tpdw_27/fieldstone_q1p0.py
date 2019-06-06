@@ -123,7 +123,8 @@ hx=Lx/nelx
 hy=Ly/nely
 
 random_grid=False
-
+penalty=1.e7  # penalty coefficient value
+sparse=False
 pnormalise=True
 
 eta_ref=1.
@@ -221,38 +222,30 @@ for i in range(0, nnp):
        on_bd[i,3]=True
 
 print("setup: boundary conditions: %.3f s" % (time.time() - start))
-
 #################################################################
 # build FE matrix
-# [ K G ][u]=[f]
-# [GT 0 ][p] [h]
 #################################################################
 start = time.time()
 
-K_mat = lil_matrix((NfemV,NfemV),dtype=np.float64) # matrix K 
-G_mat = lil_matrix((NfemV,NfemP),dtype=np.float64) # matrix GT
-#K_mat = np.zeros((NfemV,NfemV),dtype=np.float64) # matrix K 
-#G_mat = np.zeros((NfemV,NfemP),dtype=np.float64) # matrix GT
-f_rhs = np.zeros(NfemV,dtype=np.float64)         # right hand side f 
-h_rhs = np.zeros(NfemP,dtype=np.float64)         # right hand side h 
+a_mat = np.zeros((NfemV,NfemV),dtype=np.float64)  # matrix of Ax=b
 b_mat = np.zeros((3,ndofV*m),dtype=np.float64)   # gradient matrix B 
-N     = np.zeros(m,dtype=np.float64)             # shape functions
-dNdx  = np.zeros(m,dtype=np.float64)             # shape functions derivatives
-dNdy  = np.zeros(m,dtype=np.float64)             # shape functions derivatives
-dNdr  = np.zeros(m,dtype=np.float64)             # shape functions derivatives
-dNds  = np.zeros(m,dtype=np.float64)             # shape functions derivatives
-u     = np.zeros(nnp,dtype=np.float64)           # x-component velocity
-v     = np.zeros(nnp,dtype=np.float64)           # y-component velocity
-p     = np.zeros(nel,dtype=np.float64)           # elemental pressure  
+rhs   = np.zeros(NfemV,dtype=np.float64)         # right hand side of Ax=b
+N     = np.zeros(m,dtype=np.float64)            # shape functions
+dNdx  = np.zeros(m,dtype=np.float64)            # shape functions derivatives
+dNdy  = np.zeros(m,dtype=np.float64)            # shape functions derivatives
+dNdr  = np.zeros(m,dtype=np.float64)            # shape functions derivatives
+dNds  = np.zeros(m,dtype=np.float64)            # shape functions derivatives
+u     = np.zeros(nnp,dtype=np.float64)          # x-component velocity
+v     = np.zeros(nnp,dtype=np.float64)          # y-component velocity
+k_mat = np.array([[1,1,0],[1,1,0],[0,0,0]],dtype=np.float64) 
 c_mat = np.array([[2,0,0],[0,2,0],[0,0,1]],dtype=np.float64) 
+
 
 for iel in range(0, nel):
 
-    # set arrays to 0 every loop
-    f_el =np.zeros((m*ndofV),dtype=np.float64)
-    K_el =np.zeros((m*ndofV,m*ndofV),dtype=np.float64)
-    G_el=np.zeros((m*ndofV,1),dtype=np.float64)
-    h_el=np.zeros((1,1),dtype=np.float64)
+    # set 2 arrays to 0 every loop
+    b_el = np.zeros(m * ndofV)
+    a_el = np.zeros((m * ndofV, m * ndofV), dtype=float)
 
     # integrate viscous term at 4 quadrature points
     for iq in [-1, 1]:
@@ -264,12 +257,19 @@ for iel in range(0, nel):
             wq=1.*1.
 
             # calculate shape functions
-            N[0:m]=NNV(rq,sq)
-            dNdr[0:m]=dNNVdr(rq,sq)
-            dNds[0:m]=dNNVds(rq,sq)
+            N[0]=0.25*(1.-rq)*(1.-sq)
+            N[1]=0.25*(1.+rq)*(1.-sq)
+            N[2]=0.25*(1.+rq)*(1.+sq)
+            N[3]=0.25*(1.-rq)*(1.+sq)
+
+            # calculate shape function derivatives
+            dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
+            dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
+            dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
+            dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
 
             # calculate jacobian matrix
-            jcb = np.zeros((2,2),dtype=np.float64)
+            jcb = np.zeros((2, 2),dtype=float)
             for k in range(0,m):
                 jcb[0, 0] += dNdr[k]*x[icon[k,iel]]
                 jcb[0, 1] += dNdr[k]*y[icon[k,iel]]
@@ -298,32 +298,57 @@ for iel in range(0, nel):
                                          [dNdy[i],dNdx[i]]]
 
             # compute elemental a_mat matrix
-            K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*wq*jcob
+            a_el += b_mat.T.dot((c_mat).dot(b_mat))*viscosity*wq*jcob
 
             # compute elemental rhs vector
             for i in range(0, m):
-                f_el[ndofV*i  ]+=N[i]*jcob*wq*bx(xq,yq)
-                f_el[ndofV*i+1]+=N[i]*jcob*wq*by(xq,yq)
-                G_el[ndofV*i  ,0]-=dNdx[i]*jcob*wq
-                G_el[ndofV*i+1,0]-=dNdy[i]*jcob*wq
+                b_el[2*i  ]+=N[i]*jcob*wq*bx(xq,yq)
+                b_el[2*i+1]+=N[i]*jcob*wq*by(xq,yq)
 
-    # impose b.c. 
-    for k1 in range(0,m):
-        for i1 in range(0,ndofV):
-            ikk=ndofV*k1          +i1
-            m1 =ndofV*icon[k1,iel]+i1
-            if bc_fix[m1]:
-               K_ref=K_el[ikk,ikk] 
-               for jkk in range(0,m*ndofV):
-                   f_el[jkk]-=K_el[jkk,ikk]*bc_val[m1]
-                   K_el[ikk,jkk]=0
-                   K_el[jkk,ikk]=0
-               K_el[ikk,ikk]=K_ref
-               f_el[ikk]=K_ref*bc_val[m1]
-               h_el[0]-=G_el[ikk,0]*bc_val[m1]
-               G_el[ikk,0]=0
+    # integrate penalty term at 1 point
+    rq=0.
+    sq=0.
+    wq=2.*2.
 
-    # assemble matrix K_mat and right hand side rhs
+    N[0]=0.25*(1.-rq)*(1.-sq)
+    N[1]=0.25*(1.+rq)*(1.-sq)
+    N[2]=0.25*(1.+rq)*(1.+sq)
+    N[3]=0.25*(1.-rq)*(1.+sq)
+
+    dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
+    dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
+    dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
+    dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
+
+    # compute the jacobian
+    jcb=np.zeros((2,2),dtype=float)
+    for k in range(0, m):
+        jcb[0,0]+=dNdr[k]*x[icon[k,iel]]
+        jcb[0,1]+=dNdr[k]*y[icon[k,iel]]
+        jcb[1,0]+=dNds[k]*x[icon[k,iel]]
+        jcb[1,1]+=dNds[k]*y[icon[k,iel]]
+
+    # calculate determinant of the jacobian
+    jcob = np.linalg.det(jcb)
+
+    # calculate the inverse of the jacobian
+    jcbi = np.linalg.inv(jcb)
+
+    # compute dNdx and dNdy
+    for k in range(0,m):
+        dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
+        dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
+
+    # compute gradient matrix
+    for i in range(0,m):
+        b_mat[0:3,2*i:2*i+2]=[[dNdx[i],0.     ],
+                              [0.     ,dNdy[i]],
+                              [dNdy[i],dNdx[i]]]
+
+    # compute elemental matrix
+    a_el += b_mat.T.dot(k_mat.dot(b_mat))*penalty*wq*jcob
+
+    # assemble matrix a_mat and right hand side rhs
     for k1 in range(0,m):
         for i1 in range(0,ndofV):
             ikk=ndofV*k1          +i1
@@ -332,50 +357,48 @@ for iel in range(0, nel):
                 for i2 in range(0,ndofV):
                     jkk=ndofV*k2          +i2
                     m2 =ndofV*icon[k2,iel]+i2
-                    K_mat[m1,m2]+=K_el[ikk,jkk]
-            f_rhs[m1]+=f_el[ikk]
-            G_mat[m1,iel]+=G_el[ikk,0]
-    h_rhs[iel]+=h_el[0]
-
-G_mat*=pressure_scaling
-h_rhs*=pressure_scaling
+                    a_mat[m1,m2]+=a_el[ikk,jkk]
+            rhs[m1]+=b_el[ikk]
 
 print("build FE matrix: %.3f s" % (time.time() - start))
 
-######################################################################
-# assemble K, G, GT, f, h into A and rhs
-######################################################################
+
+#################################################################
+# impose boundary conditions
+#################################################################
 start = time.time()
 
-if pnormalise:
-   a_mat = lil_matrix((Nfem+1,Nfem+1),dtype=np.float64)
-   rhs   = np.zeros(Nfem+1,dtype=np.float64)          # right hand side of Ax=b
-   a_mat[0:NfemV,0:NfemV]=K_mat
-   a_mat[0:NfemV,NfemV:Nfem]=G_mat
-   a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
-   a_mat[Nfem,NfemV:Nfem]=1
-   a_mat[NfemV:Nfem,Nfem]=1
-else:
-   a_mat = np.zeros((Nfem,Nfem),dtype=np.float64)  # matrix of Ax=b
-   rhs   = np.zeros(Nfem,dtype=np.float64)         # right hand side of Ax=b
-   a_mat[0:NfemV,0:NfemV]=K_mat
-   a_mat[0:NfemV,NfemV:Nfem]=G_mat
-   a_mat[NfemV:Nfem,0:NfemV]=G_mat.T
+for i in range(0, NfemV):
+    if bc_fix[i]:
+       a_matref = a_mat[i,i]
+       for j in range(0,NfemV):
+           rhs[j]-= a_mat[i, j] * bc_val[i]
+           a_mat[i,j]=0.
+           a_mat[j,i]=0.
+           a_mat[i,i] = a_matref
+       rhs[i]=a_matref*bc_val[i]
 
-rhs[0:NfemV]=f_rhs
-rhs[NfemV:Nfem]=h_rhs
+#print("a_mat (m,M) = %.4f %.4f" %(np.min(a_mat),np.max(a_mat)))
+#print("rhs   (m,M) = %.6f %.6f" %(np.min(rhs),np.max(rhs)))
 
-print("assemble blocks: %.3f s" % (time.time() - start))
+print("impose b.c.: %.3f s" % (time.time() - start))
+
 
 ######################################################################
 # solve system
 ######################################################################
 start = time.time()
 
-a_mat=a_mat.tocsr()
-#sol = sps.linalg.spsolve(sps.csr_matrix(a_mat),rhs)
+if sparse:
+  sparse_matrix = A_sparse.tocsr()
+else:
+  sparse_matrix = sps.csr_matrix(a_mat)
 
-sol=sps.linalg.spsolve(a_mat,rhs)
+print("sparse matrix time: %.3f s" % (time.time()-start))
+
+start=time.time()
+
+sol=sps.linalg.spsolve(sparse_matrix,rhs,use_umfpack=True)
 
 print("solve time: %.3f s" % (time.time() - start))
 
@@ -385,7 +408,7 @@ print("solve time: %.3f s" % (time.time() - start))
 start = time.time()
 
 u,v=np.reshape(sol[0:NfemV],(nnp,2)).T
-p=sol[NfemV:Nfem]*pressure_scaling
+p=sol[NfemV:Nfem]
 
 print("     -> u (m,M) %.4f %.4f " %(np.min(u),np.max(u)))
 print("     -> v (m,M) %.4f %.4f " %(np.min(v),np.max(v)))
@@ -394,26 +417,33 @@ np.savetxt('velocity.ascii',np.array([x,y,u,v]).T,header='# x,y,u,v')
 
 print("split vel into u,v: %.3f s" % (time.time() - start))
 
-######################################################################
-# compute elemental strainrate 
-######################################################################
+#####################################################################
+# retrieve pressure
+#####################################################################
 start = time.time()
 
 xc = np.zeros(nel,dtype=np.float64)  
 yc = np.zeros(nel,dtype=np.float64)  
+p  = np.zeros(nel,dtype=np.float64)  
 exx = np.zeros(nel,dtype=np.float64)  
 eyy = np.zeros(nel,dtype=np.float64)  
 exy = np.zeros(nel,dtype=np.float64)  
-e   = np.zeros(nel,dtype=np.float64)  
 
 for iel in range(0,nel):
 
     rq = 0.0
     sq = 0.0
+    wq = 2.0 * 2.0
 
-    N[0:m]=NNV(rq,sq)
-    dNdr[0:m]=dNNVdr(rq,sq)
-    dNds[0:m]=dNNVds(rq,sq)
+    N[0]=0.25*(1.-rq)*(1.-sq)
+    N[1]=0.25*(1.+rq)*(1.-sq)
+    N[2]=0.25*(1.+rq)*(1.+sq)
+    N[3]=0.25*(1.-rq)*(1.+sq)
+
+    dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
+    dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
+    dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
+    dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
 
     jcb=np.zeros((2,2),dtype=float)
     for k in range(0, m):
@@ -439,13 +469,15 @@ for iel in range(0,nel):
         eyy[iel] += dNdy[k]*v[icon[k,iel]]
         exy[iel] += 0.5*dNdy[k]*u[icon[k,iel]]+ 0.5*dNdx[k]*v[icon[k,iel]]
 
-    e[iel]=np.sqrt(0.5*(exx[iel]*exx[iel]+eyy[iel]*eyy[iel])+exy[iel]*exy[iel])
+    p[iel]=-penalty*(exx[iel]+eyy[iel])
 
+print("     -> p (m,M) %.4f %.4f " %(np.min(p),np.max(p)))
 print("     -> exx (m,M) %.4f %.4f " %(np.min(exx),np.max(exx)))
 print("     -> eyy (m,M) %.4f %.4f " %(np.min(eyy),np.max(eyy)))
 print("     -> exy (m,M) %.4f %.4f " %(np.min(exy),np.max(exy)))
 
-np.savetxt('p.ascii',np.array([xc,yc,p]).T,header='# x,y,p')
+np.savetxt('pressure.ascii',np.array([xc,yc,p]).T,header='# xc,yc,p')
+
 np.savetxt('strainrate.ascii',np.array([xc,yc,exx,eyy,exy]).T,header='# xc,yc,exx,eyy,exy')
 
 print("compute press & sr: %.3f s" % (time.time() - start))
@@ -932,236 +964,10 @@ vy_reconstructed=np.zeros(nnp,dtype=np.float64)
 p_reconstructed =np.zeros(nnp,dtype=np.float64)
 
 
-# counter = 0
-# for j in range(0,nely):
-#     for i in range(0,nelx):
-#         if i<nelx-1 and j<nely-1:
-
-
-
-#            iel0=counter
-#            iel1=counter+1
-#            iel2=counter+nelx+1
-#            iel3=counter+nelx
-
-#            node = icon[2,iel0]
-#            print(node)
-
-#            element_list=[iel0,iel1,iel2,iel3]
-
-#            rhs_x = 0
-#            rhs_y = 0
-#            lhs_x = 0
-#            lhs_y = 0
-#            lhs_xy= 0
-#            gel_x = 0
-#            gel_y = 0
-
-#            lhs=np.zeros((3,2),dtype=np.float64)
-#            rhs=np.zeros(3,dtype=np.float64)
-
-#            for iel_patch in range(4):
-
-#               # f_el =np.zeros((m*ndofV),dtype=np.float64)
-#               # K_el =np.zeros((m*ndofV,m*ndofV),dtype=np.float64)
-#               # G_el=np.zeros((m*ndofV,1),dtype=np.float64)
-#               # h_el=np.zeros((1,1),dtype=np.float64)
-
-#               # integrate viscous term at 4 quadrature points
-#               iel=element_list[iel_patch]
-#               for iq in [-1, 1]:
-#                 for jq in [-1, 1]:
-#                     f_el =np.zeros((m*ndofV),dtype=np.float64)
-#                     K_el =np.zeros((m*ndofV,m*ndofV),dtype=np.float64)
-#                     G_el=np.zeros((m*ndofV,1),dtype=np.float64)
-#                     h_el=np.zeros((1,1),dtype=np.float64)
-
-#                     # position & weight of quad. point
-#                     rq=iq/sqrt3
-#                     sq=jq/sqrt3
-#                     wq=1.*1.
-
-#                     # calculate shape functions
-#                     N[0:m]=NNV(rq,sq)
-#                     dNdr[0:m]=dNNVdr(rq,sq)
-#                     dNds[0:m]=dNNVds(rq,sq)
-
-#                     # calculate jacobian matrix
-#                     jcb = np.zeros((2,2),dtype=np.float64)
-#                     for k in range(0,m):
-#                         jcb[0, 0] += dNdr[k]*x[icon[k,iel]]
-#                         jcb[0, 1] += dNdr[k]*y[icon[k,iel]]
-#                         jcb[1, 0] += dNds[k]*x[icon[k,iel]]
-#                         jcb[1, 1] += dNds[k]*y[icon[k,iel]]
-
-#                     # calculate the determinant of the jacobian
-#                     jcob = np.linalg.det(jcb)
-
-#                     # calculate inverse of the jacobian matrix
-#                     jcbi = np.linalg.inv(jcb)
-
-#                     # compute dNdx & dNdy
-#                     xq=0.0
-#                     yq=0.0
-#                     for k in range(0, m):
-#                         xq+=N[k]*x[icon[k,iel]]
-#                         yq+=N[k]*y[icon[k,iel]]
-#                         dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
-#                         dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
-
-#                     # construct 3x8 b_mat matrix
-#                     for i in range(0, m):
-#                         b_mat[0:3, 2*i:2*i+2] = [[dNdx[i],0.     ],
-#                                                  [0.     ,dNdy[i]],
-#                                                  [dNdy[i],dNdx[i]]]
-
-#                     # compute elemental a_mat matrix
-#                     K_el+=b_mat.T.dot(c_mat.dot(b_mat))*viscosity*wq*jcob
-
-#                     # compute elemental rhs vector
-#                     for i in range(0, m):
-#                         f_el[ndofV*i  ]+=N[i]*jcob*wq*bx(xq,yq)
-#                         f_el[ndofV*i+1]+=N[i]*jcob*wq*by(xq,yq)
-#                         G_el[ndofV*i  ,0]-=dNdx[i]*jcob*wq
-#                         G_el[ndofV*i+1,0]-=dNdy[i]*jcob*wq
-
-
-#                     if i==0:
-#                       rhs_x += f_el[4]-G_el[4,0]*p[iel]
-#                       rhs_y += f_el[5]-G_el[5,0]*p[iel]
-
-#                       lhs_x += K_el[4,4]
-#                       lhs_y += K_el[5,5]
-#                       lhs_xy+= K_el[4,5]
-#                       gel_x += G_el[4,0]
-#                       gel_y += G_el[5,0]
-
-#                       for k in [0,1,3]:
-#                         rhs_x -= K_el[4,2*k]  *u[icon[k,iel]]
-#                         rhs_y -= K_el[5,2*k+1]*v[icon[k,iel]]
-#                         rhs[2]-= G_el[2*k,0]*u[icon[k,iel]] + G_el[2*k+1,0]*v[icon[k,iel]]
-
-
-#                     if i==1:
-#                       rhs_x += f_el[6]-G_el[6,0]*p[iel]
-#                       rhs_y += f_el[7]-G_el[7,0]*p[iel]
-
-#                       for k in [0,1,2]:
-#                         rhs_x -= K_el[6,2*k]  *u[icon[k,iel]]
-#                         rhs_y -= K_el[7,2*k+1]*v[icon[k,iel]]
-#                         rhs[2]-= G_el[2*k,0]*u[icon[k,iel]] + G_el[2*k+1,0]*v[icon[k,iel]]
-
-#                       lhs_x += K_el[6,6]
-#                       lhs_y += K_el[7,7]
-#                       lhs_xy+= K_el[6,7]
-#                       gel_x += G_el[6,0]
-#                       gel_y += G_el[7,0]
-
-
-#                     if i==2:
-#                       rhs_x += f_el[0]-G_el[0,0]*p[iel]
-#                       rhs_y += f_el[1]-G_el[1,0]*p[iel]
-
-#                       for k in [1,2,3]:
-#                         rhs_x -= K_el[0,2*k]  *u[icon[k,iel]]
-#                         rhs_y -= K_el[1,2*k+1]*v[icon[k,iel]]
-#                         rhs[2]-= G_el[2*k,0]*u[icon[k,iel]] + G_el[2*k+1,0]*v[icon[k,iel]]
-
-#                       lhs_x += K_el[0,0]
-#                       lhs_y += K_el[1,1]
-#                       lhx_xy+= K_el[0,1]
-#                       gel_x += G_el[0,0]
-#                       gel_y += G_el[1,0]
-
-#                     if i==3:
-#                       rhs_x += f_el[2]-G_el[2,0]*p[iel]
-#                       rhs_y += f_el[3]-G_el[3,0]*p[iel]
-#                       rhs[2]-= G_el[2*k,0]*u[icon[k,iel]] + G_el[2*k+1,0]*v[icon[k,iel]]
-
-#                       for k in [0,2,3]:
-#                         rhs_x -= K_el[2,2*k]  *u[icon[k,iel]]
-#                         rhs_y -= K_el[3,2*k+1]*v[icon[k,iel]]
-
-#                       lhs_x += K_el[2,2]
-#                       lhs_y += K_el[3,3]
-#                       lhs_xy+= K_el[2,3]
-#                       gel_x += G_el[2,0]
-#                       gel_y += G_el[3,0]
-
-#            lhs_xy*=0
-#            lhs[0,0]=lhs_x
-#            lhs[1,0]=lhs_xy
-#            lhs[0,1]=lhs_xy
-#            lhs[1,1]=lhs_y
-#            lhs[2,0]=gel_x
-#            lhs[2,1]=gel_y
-#            # lhs[0,2]=gel_x
-#            # lhs[1,2]=gel_y
-
-#            rhs[0]=rhs_x
-#            rhs[1]=rhs_y
-#            #print("test")
-
-#            #mrrgl=np.matmul(np.transpose(lhs),lhs)
-#            #print("test")
-
-
-#            #grrgl=np.matmul(np.transpose(lhs),rhs)
-#            #print("test")
-
-#            sol=np.linalg.solve(np.matmul(np.transpose(lhs),lhs),np.matmul(np.transpose(lhs),rhs))
-
-#            #print("test")
-#            vx_reconstructed[node] = sol[0]
-#            vy_reconstructed[node] = sol[1]
-
-#            # vx_reconstructed[node] = rhs_x/lhs_x
-#            # vy_reconstructed[node] = rhs_y/lhs_y
-
-#         counter +=1
-
-
-vx_reconstructed=np.zeros(nnp,dtype=np.float64)
-vy_reconstructed=np.zeros(nnp,dtype=np.float64)
-p_reconstructed =np.zeros(nnp,dtype=np.float64)
-
-
-
-icon_patch =np.zeros((m, 4),dtype=np.int16)
-
-icon_patch[0,0] = 0
-icon_patch[1,0] = 1
-icon_patch[2,0] = 4
-icon_patch[3,0] = 3
-
-icon_patch[0,1] = 1
-icon_patch[1,1] = 2
-icon_patch[2,1] = 5
-icon_patch[3,1] = 4
-
-icon_patch[0,2] = 4
-icon_patch[1,2] = 5
-icon_patch[2,2] = 8
-icon_patch[3,2] = 7
-
-icon_patch[0,3] = 3
-icon_patch[1,3] = 4
-icon_patch[2,3] = 7
-icon_patch[3,3] = 6
-
 counter = 0
 for j in range(0,nely):
     for i in range(0,nelx):
         if i<nelx-1 and j<nely-1:
-
-           K_patch = np.zeros((18,18),dtype=np.float64)
-           G_patch = np.zeros((18,4),dtype=np.float64)
-           f_patch = np.zeros(18,dtype=np.float64)
-           h_patch = np.zeros(4,dtype=np.float64)
-
-           lhs = np.zeros((22,22),dtype=np.float64)
-           rhs = np.zeros(22,dtype=np.float64)
-
            iel0=counter
            iel1=counter+1
            iel2=counter+nelx+1
@@ -1169,20 +975,33 @@ for j in range(0,nely):
 
            node = icon[2,iel0]
 
-           #print(node)
-
            element_list=[iel0,iel1,iel2,iel3]
 
+           rhs_x = 0
+           rhs_y = 0
+           lhs_x = 0
+           lhs_y = 0
+           lhs_xy= 0
+           gel_x = 0
+           gel_y = 0
+
+           lhs=np.zeros((3,2),dtype=np.float64)
+           rhs=np.zeros(3,dtype=np.float64)
+
            for iel_patch in range(4):
-              #print("iel= ",iel_patch)
+
+
               f_el =np.zeros((m*ndofV),dtype=np.float64)
               K_el =np.zeros((m*ndofV,m*ndofV),dtype=np.float64)
-              G_el=np.zeros((m*ndofV,1),dtype=np.float64)
-              h_el=np.zeros((1,1),dtype=np.float64)
+              # G_el=np.zeros((m*ndofV,1),dtype=np.float64)
+              # h_el=np.zeros((1,1),dtype=np.float64)
+
+
               # integrate viscous term at 4 quadrature points
               iel=element_list[iel_patch]
               for iq in [-1, 1]:
                 for jq in [-1, 1]:
+
 
 
                     # position & weight of quad. point
@@ -1231,74 +1050,134 @@ for j in range(0,nely):
                     for i in range(0, m):
                         f_el[ndofV*i  ]+=N[i]*jcob*wq*bx(xq,yq)
                         f_el[ndofV*i+1]+=N[i]*jcob*wq*by(xq,yq)
-                        G_el[ndofV*i  ,0]-=dNdx[i]*jcob*wq
-                        G_el[ndofV*i+1,0]-=dNdy[i]*jcob*wq
-              #print(G_el)
 
-              #Now assemble
-              
-              # impose b.c. 
-              for k1 in range(0,m):
-                  for i1 in range(0,ndofV):
-                      ikk=ndofV*k1          +i1
-                      m1 =ndofV*icon_patch[k1,iel_patch]+i1
-                      #if bc_fix[m1]:
-                      if m1 !=4:
-                         K_ref=K_el[ikk,ikk] 
-                         for jkk in range(0,m*ndofV):
-                             # f_el[jkk]-=K_el[jkk,ikk]*bc_val[m1]
-                             # if i==0: f_el[jkk]-=K_el[jkk,ikk]*u[icon[k,iel]]
-                             # if i==1: f_el[jkk]-=K_el[jkk,ikk]*v[icon[k,iel]]
-                             # K_el[ikk,jkk]=0
-                             # K_el[jkk,ikk]=0
-                             pass
-                         K_el[ikk,ikk]=K_ref
-                         #f_el[ikk]=K_ref*bc_val[m1]
-                         if i==0: f_el[ikk]=K_ref*u[icon[k,iel]]
-                         if i==1: f_el[ikk]=K_ref*v[icon[k,iel]]
-                         #h_el[0]-=G_el[ikk,0]*bc_val[m1]                         
-                         # if i==0: h_el[0]-=G_el[ikk,0]*u[icon[k,iel]]
-                         # if i==1: h_el[0]-=G_el[ikk,0]*v[icon[k,iel]]
-                         #G_el[ikk,0]=0
 
-              # assemble matrix K_mat and right hand side rhs
-              for k1 in range(0,m):
-                  #print("k1= ",k1)
-                  for i1 in range(0,ndofV):
-                      ikk=ndofV*k1          +i1
-                      m1 =ndofV*icon_patch[k1,iel_patch]+i1
-                      for k2 in range(0,m):
-                          #print("k2= ",k2)
-                          for i2 in range(0,ndofV):
-                              jkk=ndofV*k2          +i2
-                              m2 =ndofV*icon_patch[k2,iel_patch]+i2
-                              K_patch[m1,m2]+=K_el[ikk,jkk]
-                      f_patch[m1]+=f_el[ikk]
-                      G_patch[m1,iel_patch]+=G_el[ikk,0]
-                      #print(G_patch[m1,iel_patch],G_el[ikk,0])
-              h_patch[iel_patch]+=h_el[0]   
 
-           #Now assemble into one matrix and solve
-           lhs[0:18,0:18]=K_patch
-           lhs[0:18,18:22]=G_patch
-           lhs[18:22,0:18]=G_patch.T
+              # integrate penalty term at 1 point
+              rq=0.
+              sq=0.
+              wq=2.*2.
 
-           rhs[0:18]=f_patch
-           rhs[18:22]=h_patch
+              N[0]=0.25*(1.-rq)*(1.-sq)
+              N[1]=0.25*(1.+rq)*(1.-sq)
+              N[2]=0.25*(1.+rq)*(1.+sq)
+              N[3]=0.25*(1.-rq)*(1.+sq)
 
-           print(np.linalg.cond(lhs))
+              dNdr[0]=-0.25*(1.-sq) ; dNds[0]=-0.25*(1.-rq)
+              dNdr[1]=+0.25*(1.-sq) ; dNds[1]=-0.25*(1.+rq)
+              dNdr[2]=+0.25*(1.+sq) ; dNds[2]=+0.25*(1.+rq)
+              dNdr[3]=-0.25*(1.+sq) ; dNds[3]=+0.25*(1.-rq)
 
-           np.savetxt("lhs.ascii",lhs,fmt="%.5e")
-           np.savetxt("rhs.ascii",rhs)
-           np.savetxt("g_patch.ascii",G_patch)
-           np.savetxt("k_patch.ascii",K_patch)
+              # compute the jacobian
+              jcb=np.zeros((2,2),dtype=float)
+              for k in range(0, m):
+                  jcb[0,0]+=dNdr[k]*x[icon[k,iel]]
+                  jcb[0,1]+=dNdr[k]*y[icon[k,iel]]
+                  jcb[1,0]+=dNds[k]*x[icon[k,iel]]
+                  jcb[1,1]+=dNds[k]*y[icon[k,iel]]
 
-           #for iii in range(22): print(lhs[iii,iii]) 
-           sol=np.linalg.solve(lhs,rhs)
-           print(sol)
+              # calculate determinant of the jacobian
+              jcob = np.linalg.det(jcb)
 
-           vx_reconstructed[node]=sol[8]
-           vy_reconstructed[node]=sol[9]
+              # calculate the inverse of the jacobian
+              jcbi = np.linalg.inv(jcb)
+
+              # compute dNdx and dNdy
+              for k in range(0,m):
+                  dNdx[k]=jcbi[0,0]*dNdr[k]+jcbi[0,1]*dNds[k]
+                  dNdy[k]=jcbi[1,0]*dNdr[k]+jcbi[1,1]*dNds[k]
+
+              # compute gradient matrix
+              for i in range(0,m):
+                  b_mat[0:3,2*i:2*i+2]=[[dNdx[i],0.     ],
+                                        [0.     ,dNdy[i]],
+                                        [dNdy[i],dNdx[i]]]
+
+              # compute elemental matrix
+              K_el += b_mat.T.dot(k_mat.dot(b_mat))*penalty*wq*jcob
+
+
+              if i==0:
+                rhs_x += f_el[4]
+                rhs_y += f_el[5]
+
+                lhs_x += K_el[4,4]
+                lhs_y += K_el[5,5]
+                lhs_xy+= K_el[4,5]
+
+
+                for k in [0,1,3]:
+                  rhs_x -= K_el[4,2*k]  *u[icon[k,iel]]
+                  rhs_y -= K_el[5,2*k+1]*v[icon[k,iel]]
+                  
+
+
+              if i==1:
+                rhs_x += f_el[6]
+                rhs_y += f_el[7]
+
+                for k in [0,1,2]:
+                  rhs_x -= K_el[6,2*k]  *u[icon[k,iel]]
+                  rhs_y -= K_el[7,2*k+1]*v[icon[k,iel]]
+
+
+                lhs_x += K_el[6,6]
+                lhs_y += K_el[7,7]
+                lhs_xy+= K_el[6,7]
+
+
+
+              if i==2:
+                rhs_x += f_el[0]
+                rhs_y += f_el[1]
+
+                for k in [1,2,3]:
+                  rhs_x -= K_el[0,2*k]  *u[icon[k,iel]]
+                  rhs_y -= K_el[1,2*k+1]*v[icon[k,iel]]
+
+                lhs_x += K_el[0,0]
+                lhs_y += K_el[1,1]
+                lhx_xy+= K_el[0,1]
+
+
+              if i==3:
+                rhs_x += f_el[2]
+                rhs_y += f_el[3]
+
+                for k in [0,2,3]:
+                  rhs_x -= K_el[2,2*k]  *u[icon[k,iel]]
+                  rhs_y -= K_el[3,2*k+1]*v[icon[k,iel]]
+
+                lhs_x += K_el[2,2]
+                lhs_y += K_el[3,3]
+                lhs_xy+= K_el[2,3]
+
+
+           lhs[0,0]=lhs_x
+           lhs[1,0]=lhs_xy
+           lhs[0,1]=lhs_xy
+           lhs[1,1]=lhs_y
+
+
+           rhs[0]=rhs_x
+           rhs[1]=rhs_y
+           #print("test")
+
+           #mrrgl=np.matmul(np.transpose(lhs),lhs)
+           #print("test")
+
+
+           #grrgl=np.matmul(np.transpose(lhs),rhs)
+           #print("test")
+
+           #sol=np.linalg.solve(np.matmul(np.transpose(lhs),lhs),np.matmul(np.transpose(lhs),rhs))
+
+           #print("test")
+           # vx_reconstructed[node] = sol[0]
+           # vy_reconstructed[node] = sol[1]
+
+           vx_reconstructed[node] = rhs_x/lhs_x
+           vy_reconstructed[node] = rhs_y/lhs_y
 
         counter +=1
 

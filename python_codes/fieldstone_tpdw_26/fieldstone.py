@@ -120,8 +120,8 @@ if int(len(sys.argv) == 4):
    nely = int(sys.argv[2])
    visu = int(sys.argv[3])
 else:
-   nelx = 96
-   nely = 96
+   nelx = 32
+   nely = 32
    visu = 1
 
 assert (nelx>0.), "nnx should be positive" 
@@ -149,7 +149,9 @@ qweights=[5./9.,8./9.,5./9.]
 hx=Lx/nelx
 hy=Ly/nely
 
-random_grid=True
+random_grid=False
+
+semi_random_grid=True
 
 pnormalise=True
 
@@ -166,19 +168,64 @@ start = time.time()
 x = np.empty(nnp, dtype=np.float64)  # x coordinates
 y = np.empty(nnp, dtype=np.float64)  # y coordinates
 
+if random_grid and semi_random_grid:
+  print("Can only have one of random and semi-random grid active")
+  sys.exit()
+
 if random_grid:
    counter = 0
    for j in range(0, nny):
        for i in range(0, nnx):
            if i>0 and j>0 and i<nnx-1 and j<nny-1:
-              dx=2.*(random.random()-0.5)*hx/25
-              dy=2.*(random.random()-0.5)*hy/25
+              dx=2.*(random.random()-0.5)*hx/20
+              dy=2.*(random.random()-0.5)*hy/20
            else:
               dx=0
               dy=0
            x[counter]=i*hx/2+dx
            y[counter]=j*hy/2+dy
            counter += 1
+elif semi_random_grid:
+    counter = 0
+    #first do the corner nodes
+    for j in range(0, nny):
+        for i in range(0, nnx):
+          if (j%2==0 and i%2==0):
+            if i>0 and j>0 and i<nnx-1 and j<nny-1:
+              dx=2.*(random.random()-0.5)*hx/10
+              dy=2.*(random.random()-0.5)*hy/10
+            else:
+              dx=0
+              dy=0
+            x[counter]=i*hx/2#+dx
+            y[counter]=j*hy/2#+dy
+          counter +=1
+    #now do the edge nodes
+    counter=0
+    for j in range(0, nny):
+        for i in range(0, nnx):
+            if (j%2!=0 and i%2==0): #nodes 5 and 7
+              x[counter]=0.5*(x[counter+nnx]+x[counter-nnx])
+              y[counter]=0.5*(y[counter+nnx]+y[counter-nnx])
+
+            if (j%2==0 and i%2!=0): #nodes 4 and 6
+              x[counter]=0.5*(x[counter+1]+x[counter-1])
+              y[counter]=0.5*(y[counter+1]+y[counter-1])
+
+            if (j%2!=0 and i%2!=0): #node 8
+              x[counter]=0.25*(x[counter+nnx+1]+x[counter-nnx+1]+x[counter+nnx-1]+x[counter-nnx-1])
+              y[counter]=0.25*(y[counter+nnx+1]+y[counter-nnx+1]+y[counter+nnx-1]+y[counter-nnx-1])
+
+            counter +=1
+
+
+
+
+
+
+
+
+
 else:
    counter = 0
    for j in range(0, nny):
@@ -533,6 +580,8 @@ print("compute press & sr: %.3f s" % (time.time() - start))
 #####################################################################
 # compute nodal strain rate - method 1 : center to node
 #####################################################################
+start = time.time()
+
 
 p1=np.zeros(nnp,dtype=np.float64)  
 exx1=np.zeros(nnp,dtype=np.float64)  
@@ -563,9 +612,14 @@ print("     -> exy1 (m,M) %.4f %.4f " %(np.min(exy1),np.max(exy1)))
 np.savetxt('srn_1.ascii',np.array([x,y,exx1,eyy1,exy1]).T,header='# x,y,exx1,eyy1,exy1')
 np.savetxt('p_1.ascii',np.array([x,y,p1]).T,header='# x,y,p')
 
+print("nel = %6d compute Centre->Node: %.3f s" % (nel,(time.time() - start)))
+
+
 #####################################################################
 # compute nodal strain rate - method 2 : corners to node
 #####################################################################
+start = time.time()
+
 
 exx2=np.zeros(nnp,dtype=np.float64)  
 eyy2=np.zeros(nnp,dtype=np.float64)  
@@ -653,6 +707,9 @@ print("     -> exy2 (m,M) %.4f %.4f " %(np.min(exy2),np.max(exy2)))
 
 np.savetxt('srn_2.ascii',np.array([x,y,exx2,eyy2,exy2]).T,header='# x,y,exx2,eyy2,exy2')
 
+print("nel = %6d compute Corner->Node: %.3f s" % (nel,(time.time() - start)))
+
+
 #####################################################################
 # compute nodal strain rate - method 3: Superconvergence Patch Recovery 
 #####################################################################
@@ -668,6 +725,9 @@ np.savetxt('srn_2.ascii',np.array([x,y,exx2,eyy2,exy2]).T,header='# x,y,exx2,eyy
 # 3--4--5
 # |  |  |
 # 0--1--2
+start = time.time()
+
+
 
 p3=np.zeros(nnp,dtype=np.float64)  
 exx3=np.zeros(nnp,dtype=np.float64)  
@@ -675,9 +735,11 @@ eyy3=np.zeros(nnp,dtype=np.float64)
 exy3=np.zeros(nnp,dtype=np.float64)  
 count=np.zeros(nnp,dtype=np.float64)  
 
-mean_condition = 0
+mean_condition_1 = 0
+max_condition_1 = 0
 condition_count= 0
 
+n_poly=9
 
 counter = 0
 for j in range(0,nely):
@@ -691,10 +753,10 @@ for j in range(0,nely):
            iel3=iel0+nelx
            #print(iel0,iel1,iel2,iel3)
 
-           AA = np.zeros((9,9),dtype=np.float64) 
-           BBxx = np.zeros(9,dtype=np.float64) 
-           BByy = np.zeros(9,dtype=np.float64) 
-           BBxy = np.zeros(9,dtype=np.float64) 
+           AA = np.zeros((n_poly,n_poly),dtype=np.float64) 
+           BBxx = np.zeros(n_poly,dtype=np.float64) 
+           BByy = np.zeros(n_poly,dtype=np.float64) 
+           BBxy = np.zeros(n_poly,dtype=np.float64) 
 
 
            for l in range(16):
@@ -761,139 +823,42 @@ for j in range(0,nely):
 
 
 
+              P_vect=np.zeros(n_poly,dtype=np.float64)
 
-              #Now I specify the entire 9x9 matrix by hand
-              #There's probably a nicer way of doing this
-
-              AA[0,0]+=1
-              AA[1,0]+=xi
-              AA[2,0]+=yi
-              AA[3,0]+=xi*yi
-              AA[4,0]+=xi**2
-              AA[5,0]+=yi**2
-              AA[6,0]+=xi**2*yi
-              AA[7,0]+=xi*yi**2
-              AA[8,0]+=xi**2*yi**2
-
-              AA[0,1]+=xi*1
-              AA[1,1]+=xi*xi
-              AA[2,1]+=xi*yi
-              AA[3,1]+=xi*xi*yi
-              AA[4,1]+=xi*xi**2
-              AA[5,1]+=xi*yi**2
-              AA[6,1]+=xi*xi**2*yi
-              AA[7,1]+=xi*xi*yi**2
-              AA[8,1]+=xi*xi**2*yi**2
-
-              AA[0,2]+=yi*1
-              AA[1,2]+=yi*xi
-              AA[2,2]+=yi*yi
-              AA[3,2]+=yi*xi*yi
-              AA[4,2]+=yi*xi**2
-              AA[5,2]+=yi*yi**2
-              AA[6,2]+=yi*xi**2*yi
-              AA[7,2]+=yi*xi*yi**2
-              AA[8,2]+=yi*xi**2*yi**2
-
-              AA[0,3]+=xi*yi*1
-              AA[1,3]+=xi*yi*xi
-              AA[2,3]+=xi*yi*yi
-              AA[3,3]+=xi*yi*xi*yi
-              AA[4,3]+=xi*yi*xi**2
-              AA[5,3]+=xi*yi*yi**2
-              AA[6,3]+=xi*yi*xi**2*yi
-              AA[7,3]+=xi*yi*xi*yi**2
-              AA[8,3]+=xi*yi*xi**2*yi**2
-
-              AA[0,4]+=xi**2*1
-              AA[1,4]+=xi**2*xi
-              AA[2,4]+=xi**2*yi
-              AA[3,4]+=xi**2*xi*yi
-              AA[4,4]+=xi**2*xi**2
-              AA[5,4]+=xi**2*yi**2
-              AA[6,4]+=xi**2*xi**2*yi
-              AA[7,4]+=xi**2*xi*yi**2
-              AA[8,4]+=xi**2*xi**2*yi**2
-
-              AA[0,5]+=yi**2*1
-              AA[1,5]+=yi**2*xi
-              AA[2,5]+=yi**2*yi
-              AA[3,5]+=yi**2*xi*yi
-              AA[4,5]+=yi**2*xi**2
-              AA[5,5]+=yi**2*yi**2
-              AA[6,5]+=yi**2*xi**2*yi
-              AA[7,5]+=yi**2*xi*yi**2
-              AA[8,5]+=yi**2*xi**2*yi**2
-
-              AA[0,6]+=xi**2*yi*1
-              AA[1,6]+=xi**2*yi*xi
-              AA[2,6]+=xi**2*yi*yi
-              AA[3,6]+=xi**2*yi*xi*yi
-              AA[4,6]+=xi**2*yi*xi**2
-              AA[5,6]+=xi**2*yi*yi**2
-              AA[6,6]+=xi**2*yi*xi**2*yi
-              AA[7,6]+=xi**2*yi*xi*yi**2
-              AA[8,6]+=xi**2*yi*xi**2*yi**2
-
-              AA[0,7]+=xi*yi**2*1
-              AA[1,7]+=xi*yi**2*xi
-              AA[2,7]+=xi*yi**2*yi
-              AA[3,7]+=xi*yi**2*xi*yi
-              AA[4,7]+=xi*yi**2*xi**2
-              AA[5,7]+=xi*yi**2*yi**2
-              AA[6,7]+=xi*yi**2*xi**2*yi
-              AA[7,7]+=xi*yi**2*xi*yi**2
-              AA[8,7]+=xi*yi**2*xi**2*yi**2
-
-              AA[0,8]+=xi**2*yi**2*1
-              AA[1,8]+=xi**2*yi**2*xi
-              AA[2,8]+=xi**2*yi**2*yi
-              AA[3,8]+=xi**2*yi**2*xi*yi
-              AA[4,8]+=xi**2*yi**2*xi**2
-              AA[5,8]+=xi**2*yi**2*yi**2
-              AA[6,8]+=xi**2*yi**2*xi**2*yi
-              AA[7,8]+=xi**2*yi**2*xi*yi**2
-              AA[8,8]+=xi**2*yi**2*xi**2*yi**2
+              P_vect[0] =1
+              P_vect[1] =xi
+              P_vect[2] =yi
+              P_vect[3] =xi*yi
+              P_vect[4] =xi**2
+              P_vect[5] =yi**2
+              P_vect[6] =xi**2*yi
+              P_vect[7] =xi*yi**2
+              P_vect[8] =xi**2*yi**2
+              # P_vect[9] =xi**3
+              # P_vect[10]=yi**3
+              # P_vect[11]=xi**3*yi
+              # P_vect[12]=yi**3*xi
+              # P_vect[13]=xi**3*yi**2
+              # P_vect[14]=xi**2*yi**3
+              # P_vect[15]=xi**3*yi**3
 
 
 
+              for ii in range(n_poly):
+                for jj in range(n_poly):
+                  AA[ii,jj]+=P_vect[ii]*P_vect[jj]
 
+              BBxx+=exxi*P_vect
+              BBxy+=exyi*P_vect
+              BByy+=eyyi*P_vect
 
-              BBxx[0]+=exxi*1 
-              BBxx[1]+=exxi*xi 
-              BBxx[2]+=exxi*yi
-              BBxx[3]+=exxi*xi*yi
-              BBxx[4]+=exxi*xi**2 
-              BBxx[5]+=exxi*yi**2 
-              BBxx[6]+=exxi*xi**2*yi
-              BBxx[7]+=exxi*xi*yi**2
-              BBxx[8]+=exxi*xi**2*yi**2 
-
-              BByy[0]+=eyyi*1 
-              BByy[1]+=eyyi*xi 
-              BByy[2]+=eyyi*yi
-              BByy[3]+=eyyi*xi*yi
-              BByy[4]+=eyyi*xi**2 
-              BByy[5]+=eyyi*yi**2 
-              BByy[6]+=eyyi*xi**2*yi
-              BByy[7]+=eyyi*xi*yi**2
-              BByy[8]+=eyyi*xi**2*yi**2 
-
-              BBxy[0]+=exyi*1 
-              BBxy[1]+=exyi*xi 
-              BBxy[2]+=exyi*yi
-              BBxy[3]+=exyi*xi*yi
-              BBxy[4]+=exyi*xi**2 
-              BBxy[5]+=exyi*yi**2 
-              BBxy[6]+=exyi*xi**2*yi
-              BBxy[7]+=exyi*xi*yi**2
-              BBxy[8]+=exyi*xi**2*yi**2 
 
            # print(np.linalg.cond(AA))
            # print("\n")
 
-           mean_condition += np.linalg.cond(AA)
+           mean_condition_1 += np.linalg.cond(AA)
            condition_count +=1
+           if np.linalg.cond(AA) > max_condition_1: max_condition_1 = np.linalg.cond(AA)
 
            solxx=sps.linalg.spsolve(sps.csr_matrix(AA),BBxx)
 
@@ -1026,16 +991,29 @@ for j in range(0,nely):
 
               assemble=True
               if assemble:
-               exx3[ip]+=solxx[0]+solxx[1]*x[ip]+solxx[2]*y[ip]+solxx[3]*x[ip]*y[ip]+solxx[4]*x[ip]**2 \
-               +solxx[5]*y[ip]**2+solxx[6]*x[ip]**2*y[ip]+solxx[7]*x[ip]*y[ip]**2+solxx[8]*x[ip]**2*y[ip]**2
-               
-               eyy3[ip]+=solyy[0]+solyy[1]*x[ip]+solyy[2]*y[ip]+solyy[3]*x[ip]*y[ip]+solyy[4]*x[ip]**2 \
-               +solyy[5]*y[ip]**2+solyy[6]*x[ip]**2*y[ip]+solyy[7]*x[ip]*y[ip]**2+solyy[8]*x[ip]**2*y[ip]**2
-               
-               exy3[ip]+=solxy[0]+solxy[1]*x[ip]+solxy[2]*y[ip]+solxy[3]*x[ip]*y[ip]+solxy[4]*x[ip]**2 \
-               +solxy[5]*y[ip]**2+solxy[6]*x[ip]**2*y[ip]+solxy[7]*x[ip]*y[ip]**2+solxy[8]*x[ip]**2*y[ip]**2
+                P_vect[0] =1
+                P_vect[1] =x[ip]
+                P_vect[2] =y[ip]
+                P_vect[3] =x[ip]*y[ip]
+                P_vect[4] =x[ip]**2
+                P_vect[5] =y[ip]**2
+                P_vect[6] =x[ip]**2*y[ip]
+                P_vect[7] =x[ip]*y[ip]**2
+                P_vect[8] =x[ip]**2*y[ip]**2
+                # P_vect[9] =x[ip]**3
+                # P_vect[10]=y[ip]**3
+                # P_vect[11]=x[ip]**3*y[ip]
+                # P_vect[12]=y[ip]**3*x[ip]
+                # P_vect[13]=x[ip]**3*y[ip]**2
+                # P_vect[14]=x[ip]**2*y[ip]**3
+                # P_vect[15]=x[ip]**3*y[ip]**3
 
-               count[ip] +=1
+                for ii in range(n_poly):
+                  exx3[ip]+=solxx[ii]*P_vect[ii]
+                  exy3[ip]+=solxy[ii]*P_vect[ii]
+                  eyy3[ip]+=solyy[ii]*P_vect[ii]
+
+                count[ip] +=1
            
 
            counter+=1
@@ -1043,7 +1021,7 @@ for j in range(0,nely):
 exx3/=count
 eyy3/=count
 exy3/=count
-mean_condition /=condition_count
+mean_condition_1 /=condition_count
 
 print("     -> exx3 (m,M) %.4f %.4f " %(np.min(exx3),np.max(exx3)))
 print("     -> eyy3 (m,M) %.4f %.4f " %(np.min(eyy3),np.max(eyy3)))
@@ -1054,122 +1032,316 @@ print("     -> exy3 (m,M) %.4f %.4f " %(np.min(exy3),np.max(exy3)))
 np.savetxt('srn_3.ascii',np.array([x,y,exx3,eyy3,exy3]).T,header='# x,y,exx3,eyy3,exy3')
 np.savetxt('p_3.ascii',np.array([x,y,p3]).T,header='# x,y,p')
 
+print("nel = %6d compute Superconvergence method 1: %.3f s" % (nel,(time.time() - start)))
+
+
 #####################################################################
 # compute nodal strain rate - method 4: global 
 #####################################################################
 
-reduced=False
+start = time.time()
+
 
 p4=np.zeros(nnp,dtype=np.float64)  
 exx4=np.zeros(nnp,dtype=np.float64)  
 eyy4=np.zeros(nnp,dtype=np.float64)  
 exy4=np.zeros(nnp,dtype=np.float64)  
 
-# A_mat=np.zeros((nnp,nnp),dtype=np.float64) # Q1 mass matrix
-# rhs_xx=np.zeros(nnp,dtype=np.float64)      # rhs
-# rhs_yy=np.zeros(nnp,dtype=np.float64)      # rhs
-# rhs_xy=np.zeros(nnp,dtype=np.float64)      # rhs
-# rhs_p=np.zeros(nnp,dtype=np.float64)       # rhs
+count=np.zeros(nnp,dtype=np.float64)  
 
- 
-# for iel in range(0, nel):
+mean_condition_2 = 0
+max_condition_2 = 0
+condition_count= 0
 
-#     # set arrays to 0 every loop
-#     fp_el =np.zeros(m,dtype=np.float64)
-#     fxx_el =np.zeros(m,dtype=np.float64)
-#     fyy_el =np.zeros(m,dtype=np.float64)
-#     fxy_el =np.zeros(m,dtype=np.float64)
-#     M_el =np.zeros((m,m),dtype=np.float64)
+n_poly=9 #number of polynomial terms
 
-#     # integrate viscous term at 4 quadrature points
-#     for iq in [-1, 1]:
-#         for jq in [-1, 1]:
+counter = 0
+for j in range(0,nely):
+    #print(j)
+    for i in range(0,nelx):
+        iel0=j*nely+i
+        if i<nelx-1 and j<nely-1:
+           iel0=iel0
+           iel1=iel0+1
+           iel2=iel0+nelx+1
+           iel3=iel0+nelx
+           #print(iel0,iel1,iel2,iel3)
 
-#             # position & weight of quad. point
-#             rq=iq/sqrt3
-#             sq=jq/sqrt3
-#             wq=1.*1.
+           AA = np.zeros((16,n_poly),dtype=np.float64) 
+           BBxx = np.zeros(16,dtype=np.float64) 
+           BByy = np.zeros(16,dtype=np.float64) 
+           BBxy = np.zeros(16,dtype=np.float64) 
 
-#             # calculate shape functions
-#             N[0:m]=NNV(rq,sq)
-#             dNVdr[0:m]=dNNVdr(rq,sq)
-#             dNVds[0:m]=dNNVds(rq,sq)
+           for l in range(16): #loop over superconv points
 
-#             # calculate jacobian matrix
-#             jcb = np.zeros((2,2),dtype=np.float64)
-#             for k in range(0,m):
-#                 jcb[0, 0] += dNVdr[k]*x[icon[k,iel]]
-#                 jcb[0, 1] += dNVdr[k]*y[icon[k,iel]]
-#                 jcb[1, 0] += dNVds[k]*x[icon[k,iel]]
-#                 jcb[1, 1] += dNVds[k]*y[icon[k,iel]]
-#             jcob = np.linalg.det(jcb)
-#             jcbi = np.linalg.inv(jcb)
+              xi=0
+              yi=0
 
-#             # compute dNdx & dNdy
-#             exxq=0.0
-#             eyyq=0.0
-#             exyq=0.0
-#             for k in range(0, m):
-#                 dNdx[k]=jcbi[0,0]*dNVdr[k]+jcbi[0,1]*dNVds[k]
-#                 dNdy[k]=jcbi[1,0]*dNVdr[k]+jcbi[1,1]*dNVds[k]
-#                 exxq += dNdx[k]*u[icon[k,iel]]
-#                 eyyq += dNdy[k]*v[icon[k,iel]]
-#                 exyq += (dNdx[k]*v[icon[k,iel]]+dNdy[k]*u[icon[k,iel]])*0.5
+              if l in [0,1,2,3]:
+                element=iel0
+              if l in [4,5,6,7]:
+                element=iel1
+              if l in [8,9,10,11]:
+                element=iel2
+              if l in [12,13,14,15]:
+                element=iel3
 
-#             for i in range(0,m):
-#                 for j in range(0,m):
-#                     M_el[i,j]+=N[i]*N[j]*wq*jcob
-#                 if not reduced:
-#                    fxx_el[i]+=N[i]*exxq*wq*jcob
-#                    fyy_el[i]+=N[i]*eyyq*wq*jcob
-#                    fxy_el[i]+=N[i]*exyq*wq*jcob
-#                    fp_el[i]+=N[i]*p[iel]*wq*jcob
 
-#     if reduced:
-#        rq=0.
-#        sq=0.
-#        wq=2.*2.
-#        N[0:m]=NNV(rq,sq)
-#        dNVdr[0:m]=dNNVdr(rq,sq)
-#        dNVds[0:m]=dNNVds(rq,sq)
-#        jcb = np.zeros((2,2),dtype=np.float64)
-#        for k in range(0,m):
-#            jcb[0,0]+=dNVdr[k]*x[icon[k,iel]]
-#            jcb[0,1]+=dNVdr[k]*y[icon[k,iel]]
-#            jcb[1,0]+=dNVds[k]*x[icon[k,iel]]
-#            jcb[1,1]+=dNVds[k]*y[icon[k,iel]]
-#        jcob=np.linalg.det(jcb)
-#        jcbi=np.linalg.inv(jcb)
-#        exxq=0.0
-#        eyyq=0.0
-#        exyq=0.0
-#        for k in range(0, m):
-#            dNdx[k]=jcbi[0,0]*dNVdr[k]+jcbi[0,1]*dNVds[k]
-#            dNdy[k]=jcbi[1,0]*dNVdr[k]+jcbi[1,1]*dNVds[k]
-#            exxq += dNdx[k]*u[icon[k,iel]]
-#            eyyq += dNdy[k]*v[icon[k,iel]]
-#            exyq += (dNdx[k]*v[icon[k,iel]]+dNdy[k]*u[icon[k,iel]])*0.5
-#        for i in range(0,m):
-#            fxx_el[i]+=N[i]*exxq*wq*jcob
-#            fyy_el[i]+=N[i]*eyyq*wq*jcob
-#            fxy_el[i]+=N[i]*exyq*wq*jcob
-#            fp_el[i]+=N[i]*p[iel]*wq*jcob
+              sconv=1/sqrt3
 
-#     # assemble matrix a_mat and right hand side rhs
-#     for k1 in range(0,m):
-#         ik=icon[k1,iel]
-#         for k2 in range(0,m):
-#             jk=icon[k2,iel]
-#             A_mat[ik,jk]+=M_el[k1,k2]
-#         rhs_xx[ik]+=fxx_el[k1]
-#         rhs_yy[ik]+=fyy_el[k1]
-#         rhs_xy[ik]+=fxy_el[k1]
-#         rhs_p[ik]+=fp_el[k1]
+              if l%4 == 0:
+                rq=-sconv
+                sq=-sconv
+              if l%4 == 1:
+                rq=+sconv
+                sq=-sconv
+              if l%4 == 2:
+                rq=+sconv
+                sq=+sconv
+              if l%4 == 3:
+                rq=-sconv
+                sq=+sconv
 
-# exx4=sps.linalg.spsolve(sps.csr_matrix(A_mat),rhs_xx)
-# eyy4=sps.linalg.spsolve(sps.csr_matrix(A_mat),rhs_yy)
-# exy4=sps.linalg.spsolve(sps.csr_matrix(A_mat),rhs_xy)
-# p4=sps.linalg.spsolve(sps.csr_matrix(A_mat),rhs_p)
+
+              NV[0:9]=NNV(rq,sq)
+              dNVdr[0:9]=dNNVdr(rq,sq)
+              dNVds[0:9]=dNNVds(rq,sq)
+
+              # calculate jacobian matrix
+              jcb=np.zeros((2,2),dtype=np.float64)
+              for k in range(0,mV):
+                  jcb[0,0] += dNVdr[k]*x[iconV[k,element]]
+                  jcb[0,1] += dNVdr[k]*y[iconV[k,element]]
+                  jcb[1,0] += dNVds[k]*x[iconV[k,element]]
+                  jcb[1,1] += dNVds[k]*y[iconV[k,element]]
+              jcob = np.linalg.det(jcb)
+              jcbi = np.linalg.inv(jcb)
+
+              # compute dNdx & dNdy
+              xi=0.0
+              yi=0.0
+              exxi=0.0
+              exyi=0.0
+              eyyi=0.0
+              for k in range(0,mV):
+                  xi+=NV[k]*x[iconV[k,element]]
+                  yi+=NV[k]*y[iconV[k,element]]
+                  dNVdx[k]=jcbi[0,0]*dNVdr[k]+jcbi[0,1]*dNVds[k]
+                  dNVdy[k]=jcbi[1,0]*dNVdr[k]+jcbi[1,1]*dNVds[k]
+
+                  exxi += dNVdx[k]*u[iconV[k,element]]
+                  eyyi += dNVdy[k]*v[iconV[k,element]]
+                  exyi += (dNVdx[k]*v[iconV[k,element]]+dNVdy[k]*u[iconV[k,element]])*0.5
+
+              P_vect=np.zeros(n_poly,dtype=np.float64)
+
+              P_vect[0] =1
+              P_vect[1] =xi
+              P_vect[2] =yi
+              P_vect[3] =xi*yi
+              P_vect[4] =xi**2
+              P_vect[5] =yi**2
+              P_vect[6] =xi**2*yi
+              P_vect[7] =xi*yi**2
+              P_vect[8] =xi**2*yi**2
+              if n_poly==16:
+                P_vect[9] =xi**3
+                P_vect[10]=yi**3
+                P_vect[11]=xi**3*yi
+                P_vect[12]=yi**3*xi
+                P_vect[13]=xi**3*yi**2
+                P_vect[14]=xi**2*yi**3
+                P_vect[15]=xi**3*yi**3
+
+
+              for ii in range(n_poly):
+                AA[l,ii]=P_vect[ii]
+
+              BBxx[l] = exxi
+              BBxy[l] = exyi
+              BByy[l] = eyyi
+
+           mean_condition_2 += np.linalg.cond(AA)
+           condition_count +=1
+           if np.linalg.cond(AA) > max_condition_2: max_condition_2 = np.linalg.cond(AA)
+
+
+           # print(AA)
+           # print("\n")
+           # print(BBxx)
+
+
+           if n_poly==16:
+             solxx=sps.linalg.spsolve(sps.csr_matrix(AA),BBxx)
+
+
+             solyy=sps.linalg.spsolve(sps.csr_matrix(AA),BByy)
+
+
+             solxy=sps.linalg.spsolve(sps.csr_matrix(AA),BBxy)
+
+           if n_poly==9:
+             solxx=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BBxx))
+             solyy=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BByy))
+             solxy=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BBxy))
+
+
+
+           for node in range(25):#loop over every node in the patch
+              assemble=False
+
+              if node==0:
+                ip=iconV[0,iel0]
+                if on_bd[ip,2] and on_bd[ip,0]:
+                  assemble=True
+
+              if node==1:
+                ip=iconV[4,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==2:
+                ip=iconV[1,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==3:
+                ip=iconV[4,iel1]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==4:
+                ip=iconV[1,iel1]
+                if on_bd[ip,2] and on_bd[ip,1]:
+                  assemble=True
+
+              if node==5:
+                ip=iconV[7,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==6:
+                ip=iconV[8,iel0]
+                assemble=True
+
+              if node==7:
+                ip=iconV[5,iel0]
+                assemble=True
+
+              if node==8:
+                ip=iconV[8,iel1]
+                assemble=True
+
+              if node==9:
+                ip=iconV[5,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==10:
+                ip=iconV[3,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==11:
+                ip=iconV[6,iel0]
+                assemble=True
+
+              if node==12:
+                ip=iconV[2,iel0]
+                assemble=True
+
+              if node==13:
+                ip=iconV[6,iel1]
+                assemble=True
+
+              if node==14:
+                ip=iconV[2,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==15:
+                ip=iconV[7,iel3]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==16:
+                ip=iconV[8,iel3]
+                assemble=True
+
+              if node==17:
+                ip=iconV[5,iel3]
+                assemble=True
+
+              if node==18:
+                ip=iconV[8,iel2]
+                assemble=True
+
+              if node==19:
+                ip=iconV[5,iel2]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==20:
+                ip=iconV[3,iel3]
+                if on_bd[ip,0] and on_bd[ip,3]:
+                  assemble=True
+
+              if node==21:
+                ip=iconV[6,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==22:
+                ip=iconV[2,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==23:
+                ip=iconV[6,iel2]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==24:
+                ip=iconV[2,iel2]
+                if on_bd[ip,3] and on_bd[ip,1]:
+                  assemble=True
+
+              assemble=True
+              if assemble:
+                P_vect[0] =1
+                P_vect[1] =x[ip]
+                P_vect[2] =y[ip]
+                P_vect[3] =x[ip]*y[ip]
+                P_vect[4] =x[ip]**2
+                P_vect[5] =y[ip]**2
+                P_vect[6] =x[ip]**2*y[ip]
+                P_vect[7] =x[ip]*y[ip]**2
+                P_vect[8] =x[ip]**2*y[ip]**2
+                if n_poly==16:
+                  P_vect[9] =x[ip]**3
+                  P_vect[10]=y[ip]**3
+                  P_vect[11]=x[ip]**3*y[ip]
+                  P_vect[12]=y[ip]**3*x[ip]
+                  P_vect[13]=x[ip]**3*y[ip]**2
+                  P_vect[14]=x[ip]**2*y[ip]**3
+                  P_vect[15]=x[ip]**3*y[ip]**3
+
+                for ii in range(n_poly):
+                  exx4[ip]+=solxx[ii]*P_vect[ii]
+                  exy4[ip]+=solxy[ii]*P_vect[ii]
+                  eyy4[ip]+=solyy[ii]*P_vect[ii]
+
+                count[ip] +=1
+           
+
+           counter+=1
+
+exx4/=count
+eyy4/=count
+exy4/=count
+mean_condition_2 /=condition_count
+
+
 
 print("     -> exx4 (m,M) %.4f %.4f " %(np.min(exx4),np.max(exx4)))
 print("     -> eyy4 (m,M) %.4f %.4f " %(np.min(eyy4),np.max(eyy4)))
@@ -1177,6 +1349,652 @@ print("     -> exy4 (m,M) %.4f %.4f " %(np.min(exy4),np.max(exy4)))
 
 np.savetxt('srn_4.ascii',np.array([x,y,exx4,eyy4,exy4]).T,header='# x,y,exx4,eyy4,exy4')
 np.savetxt('p_4.ascii',np.array([x,y,p4]).T,header='# x,y,p')
+
+print("nel = %6d compute Superconvergence method 2: %.3f s" % (nel,(time.time() - start)))
+
+#####################################################################
+# compute nodal strain rate - method 3: Superconvergence Patch Recovery 
+#####################################################################
+# numbering of elements inside patch
+# -----
+# |3|2|
+# -----
+# |0|1|
+# -----
+# numbering of nodes of the patch
+# 6--7--8
+# |  |  |
+# 3--4--5
+# |  |  |
+# 0--1--2
+start = time.time()
+
+
+
+p3=np.zeros(nnp,dtype=np.float64)  
+exx5=np.zeros(nnp,dtype=np.float64)  
+eyy5=np.zeros(nnp,dtype=np.float64)  
+exy5=np.zeros(nnp,dtype=np.float64)  
+count=np.zeros(nnp,dtype=np.float64)  
+
+mean_condition_3 = 0
+max_condition_3 = 0
+condition_count= 0
+
+n_poly=16
+
+counter = 0
+for j in range(0,nely):
+    #print(j)
+    for i in range(0,nelx):
+        iel0=j*nely+i
+        if i<nelx-1 and j<nely-1:
+           iel0=iel0
+           iel1=iel0+1
+           iel2=iel0+nelx+1
+           iel3=iel0+nelx
+           #print(iel0,iel1,iel2,iel3)
+
+           AA = np.zeros((n_poly,n_poly),dtype=np.float64) 
+           BBxx = np.zeros(n_poly,dtype=np.float64) 
+           BByy = np.zeros(n_poly,dtype=np.float64) 
+           BBxy = np.zeros(n_poly,dtype=np.float64) 
+
+
+           for l in range(16):
+              #I need a bit of code here to get x_i and y_i
+
+              xi=0
+              yi=0
+
+              if l in [0,1,2,3]:
+                element=iel0
+              if l in [4,5,6,7]:
+                element=iel1
+              if l in [8,9,10,11]:
+                element=iel2
+              if l in [12,13,14,15]:
+                element=iel3
+
+
+              sconv=1/sqrt3
+
+              if l%4 == 0:
+                rq=-sconv
+                sq=-sconv
+              if l%4 == 1:
+                rq=+sconv
+                sq=-sconv
+              if l%4 == 2:
+                rq=+sconv
+                sq=+sconv
+              if l%4 == 3:
+                rq=-sconv
+                sq=+sconv
+
+
+              NV[0:9]=NNV(rq,sq)
+              dNVdr[0:9]=dNNVdr(rq,sq)
+              dNVds[0:9]=dNNVds(rq,sq)
+
+              # calculate jacobian matrix
+              jcb=np.zeros((2,2),dtype=np.float64)
+              for k in range(0,mV):
+                  jcb[0,0] += dNVdr[k]*x[iconV[k,element]]
+                  jcb[0,1] += dNVdr[k]*y[iconV[k,element]]
+                  jcb[1,0] += dNVds[k]*x[iconV[k,element]]
+                  jcb[1,1] += dNVds[k]*y[iconV[k,element]]
+              jcob = np.linalg.det(jcb)
+              jcbi = np.linalg.inv(jcb)
+
+              # compute dNdx & dNdy
+              xi=0.0
+              yi=0.0
+              exxi=0.0
+              exyi=0.0
+              eyyi=0.0
+              for k in range(0,mV):
+                  xi+=NV[k]*x[iconV[k,element]]
+                  yi+=NV[k]*y[iconV[k,element]]
+                  dNVdx[k]=jcbi[0,0]*dNVdr[k]+jcbi[0,1]*dNVds[k]
+                  dNVdy[k]=jcbi[1,0]*dNVdr[k]+jcbi[1,1]*dNVds[k]
+
+                  exxi += dNVdx[k]*u[iconV[k,element]]
+                  eyyi += dNVdy[k]*v[iconV[k,element]]
+                  exyi += (dNVdx[k]*v[iconV[k,element]]+dNVdy[k]*u[iconV[k,element]])*0.5
+
+
+
+              P_vect=np.zeros(n_poly,dtype=np.float64)
+
+              P_vect[0] =1
+              P_vect[1] =xi
+              P_vect[2] =yi
+              P_vect[3] =xi*yi
+              P_vect[4] =xi**2
+              P_vect[5] =yi**2
+              P_vect[6] =xi**2*yi
+              P_vect[7] =xi*yi**2
+              P_vect[8] =xi**2*yi**2
+              P_vect[9] =xi**3
+              P_vect[10]=yi**3
+              P_vect[11]=xi**3*yi
+              P_vect[12]=yi**3*xi
+              P_vect[13]=xi**3*yi**2
+              P_vect[14]=xi**2*yi**3
+              P_vect[15]=xi**3*yi**3
+
+
+
+              for ii in range(n_poly):
+                for jj in range(n_poly):
+                  AA[ii,jj]+=P_vect[ii]*P_vect[jj]
+
+              BBxx+=exxi*P_vect
+              BBxy+=exyi*P_vect
+              BByy+=eyyi*P_vect
+
+
+           # print(np.linalg.cond(AA))
+           # print("\n")
+
+           mean_condition_3 += np.linalg.cond(AA)
+           condition_count +=1
+           if np.linalg.cond(AA) > max_condition_3: max_condition_3 = np.linalg.cond(AA)
+
+
+           solxx=sps.linalg.spsolve(sps.csr_matrix(AA),BBxx)
+
+
+           solyy=sps.linalg.spsolve(sps.csr_matrix(AA),BByy)
+
+
+           solxy=sps.linalg.spsolve(sps.csr_matrix(AA),BBxy)
+
+
+
+           for node in range(25):#loop over every node in the patch
+              assemble=False
+
+              if node==0:
+                ip=iconV[0,iel0]
+                if on_bd[ip,2] and on_bd[ip,0]:
+                  assemble=True
+
+              if node==1:
+                ip=iconV[4,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==2:
+                ip=iconV[1,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==3:
+                ip=iconV[4,iel1]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==4:
+                ip=iconV[1,iel1]
+                if on_bd[ip,2] and on_bd[ip,1]:
+                  assemble=True
+
+              if node==5:
+                ip=iconV[7,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==6:
+                ip=iconV[8,iel0]
+                assemble=True
+
+              if node==7:
+                ip=iconV[5,iel0]
+                assemble=True
+
+              if node==8:
+                ip=iconV[8,iel1]
+                assemble=True
+
+              if node==9:
+                ip=iconV[5,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==10:
+                ip=iconV[3,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==11:
+                ip=iconV[6,iel0]
+                assemble=True
+
+              if node==12:
+                ip=iconV[2,iel0]
+                assemble=True
+
+              if node==13:
+                ip=iconV[6,iel1]
+                assemble=True
+
+              if node==14:
+                ip=iconV[2,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==15:
+                ip=iconV[7,iel3]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==16:
+                ip=iconV[8,iel3]
+                assemble=True
+
+              if node==17:
+                ip=iconV[5,iel3]
+                assemble=True
+
+              if node==18:
+                ip=iconV[8,iel2]
+                assemble=True
+
+              if node==19:
+                ip=iconV[5,iel2]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==20:
+                ip=iconV[3,iel3]
+                if on_bd[ip,0] and on_bd[ip,3]:
+                  assemble=True
+
+              if node==21:
+                ip=iconV[6,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==22:
+                ip=iconV[2,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==23:
+                ip=iconV[6,iel2]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==24:
+                ip=iconV[2,iel2]
+                if on_bd[ip,3] and on_bd[ip,1]:
+                  assemble=True
+
+              assemble=True
+              if assemble:
+                P_vect[0] =1
+                P_vect[1] =x[ip]
+                P_vect[2] =y[ip]
+                P_vect[3] =x[ip]*y[ip]
+                P_vect[4] =x[ip]**2
+                P_vect[5] =y[ip]**2
+                P_vect[6] =x[ip]**2*y[ip]
+                P_vect[7] =x[ip]*y[ip]**2
+                P_vect[8] =x[ip]**2*y[ip]**2
+                P_vect[9] =x[ip]**3
+                P_vect[10]=y[ip]**3
+                P_vect[11]=x[ip]**3*y[ip]
+                P_vect[12]=y[ip]**3*x[ip]
+                P_vect[13]=x[ip]**3*y[ip]**2
+                P_vect[14]=x[ip]**2*y[ip]**3
+                P_vect[15]=x[ip]**3*y[ip]**3
+
+                for ii in range(n_poly):
+                  exx5[ip]+=solxx[ii]*P_vect[ii]
+                  exy5[ip]+=solxy[ii]*P_vect[ii]
+                  eyy5[ip]+=solyy[ii]*P_vect[ii]
+
+                count[ip] +=1
+           
+
+           counter+=1
+
+exx5/=count
+eyy5/=count
+exy5/=count
+mean_condition_3 /=condition_count
+
+print("     -> exx5 (m,M) %.4f %.4f " %(np.min(exx3),np.max(exx3)))
+print("     -> eyy5 (m,M) %.4f %.4f " %(np.min(eyy3),np.max(eyy3)))
+print("     -> exy5 (m,M) %.4f %.4f " %(np.min(exy3),np.max(exy3)))
+
+
+
+
+
+print("nel = %6d compute Superconvergence method 3: %.3f s" % (nel,(time.time() - start)))
+
+
+#####################################################################
+# compute nodal strain rate - method 4: global 
+#####################################################################
+
+start = time.time()
+
+
+p4=np.zeros(nnp,dtype=np.float64)  
+exx6=np.zeros(nnp,dtype=np.float64)  
+eyy6=np.zeros(nnp,dtype=np.float64)  
+exy6=np.zeros(nnp,dtype=np.float64)  
+
+count=np.zeros(nnp,dtype=np.float64)  
+
+mean_condition_4 = 0
+max_condition_4 = 0
+condition_count= 0
+
+n_poly=16 #number of polynomial terms
+
+counter = 0
+for j in range(0,nely):
+    #print(j)
+    for i in range(0,nelx):
+        iel0=j*nely+i
+        if i<nelx-1 and j<nely-1:
+           iel0=iel0
+           iel1=iel0+1
+           iel2=iel0+nelx+1
+           iel3=iel0+nelx
+           #print(iel0,iel1,iel2,iel3)
+
+           AA = np.zeros((16,n_poly),dtype=np.float64) 
+           BBxx = np.zeros(16,dtype=np.float64) 
+           BByy = np.zeros(16,dtype=np.float64) 
+           BBxy = np.zeros(16,dtype=np.float64) 
+
+           for l in range(16): #loop over superconv points
+
+              xi=0
+              yi=0
+
+              if l in [0,1,2,3]:
+                element=iel0
+              if l in [4,5,6,7]:
+                element=iel1
+              if l in [8,9,10,11]:
+                element=iel2
+              if l in [12,13,14,15]:
+                element=iel3
+
+
+              sconv=1/sqrt3
+
+              if l%4 == 0:
+                rq=-sconv
+                sq=-sconv
+              if l%4 == 1:
+                rq=+sconv
+                sq=-sconv
+              if l%4 == 2:
+                rq=+sconv
+                sq=+sconv
+              if l%4 == 3:
+                rq=-sconv
+                sq=+sconv
+
+
+              NV[0:9]=NNV(rq,sq)
+              dNVdr[0:9]=dNNVdr(rq,sq)
+              dNVds[0:9]=dNNVds(rq,sq)
+
+              # calculate jacobian matrix
+              jcb=np.zeros((2,2),dtype=np.float64)
+              for k in range(0,mV):
+                  jcb[0,0] += dNVdr[k]*x[iconV[k,element]]
+                  jcb[0,1] += dNVdr[k]*y[iconV[k,element]]
+                  jcb[1,0] += dNVds[k]*x[iconV[k,element]]
+                  jcb[1,1] += dNVds[k]*y[iconV[k,element]]
+              jcob = np.linalg.det(jcb)
+              jcbi = np.linalg.inv(jcb)
+
+              # compute dNdx & dNdy
+              xi=0.0
+              yi=0.0
+              exxi=0.0
+              exyi=0.0
+              eyyi=0.0
+              for k in range(0,mV):
+                  xi+=NV[k]*x[iconV[k,element]]
+                  yi+=NV[k]*y[iconV[k,element]]
+                  dNVdx[k]=jcbi[0,0]*dNVdr[k]+jcbi[0,1]*dNVds[k]
+                  dNVdy[k]=jcbi[1,0]*dNVdr[k]+jcbi[1,1]*dNVds[k]
+
+                  exxi += dNVdx[k]*u[iconV[k,element]]
+                  eyyi += dNVdy[k]*v[iconV[k,element]]
+                  exyi += (dNVdx[k]*v[iconV[k,element]]+dNVdy[k]*u[iconV[k,element]])*0.5
+
+              P_vect=np.zeros(n_poly,dtype=np.float64)
+
+              P_vect[0] =1
+              P_vect[1] =xi
+              P_vect[2] =yi
+              P_vect[3] =xi*yi
+              P_vect[4] =xi**2
+              P_vect[5] =yi**2
+              P_vect[6] =xi**2*yi
+              P_vect[7] =xi*yi**2
+              P_vect[8] =xi**2*yi**2
+              if n_poly==16:
+                P_vect[9] =xi**3
+                P_vect[10]=yi**3
+                P_vect[11]=xi**3*yi
+                P_vect[12]=yi**3*xi
+                P_vect[13]=xi**3*yi**2
+                P_vect[14]=xi**2*yi**3
+                P_vect[15]=xi**3*yi**3
+
+
+              for ii in range(n_poly):
+                AA[l,ii]=P_vect[ii]
+
+              BBxx[l] = exxi
+              BBxy[l] = exyi
+              BByy[l] = eyyi
+
+           mean_condition_4 += np.linalg.cond(AA)
+           condition_count +=1
+           if np.linalg.cond(AA) > max_condition_4: max_condition_4 = np.linalg.cond(AA)
+
+
+           # print(AA)
+           # print("\n")
+           # print(BBxx)
+
+
+           if n_poly==16:
+             solxx=sps.linalg.spsolve(sps.csr_matrix(AA),BBxx)
+
+
+             solyy=sps.linalg.spsolve(sps.csr_matrix(AA),BByy)
+
+
+             solxy=sps.linalg.spsolve(sps.csr_matrix(AA),BBxy)
+
+           if n_poly==9:
+             solxx=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BBxx))
+             solyy=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BByy))
+             solxy=np.linalg.solve(np.matmul(np.transpose(AA),AA),np.matmul(np.transpose(AA),BBxy))
+
+
+
+           for node in range(25):#loop over every node in the patch
+              assemble=False
+
+              if node==0:
+                ip=iconV[0,iel0]
+                if on_bd[ip,2] and on_bd[ip,0]:
+                  assemble=True
+
+              if node==1:
+                ip=iconV[4,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==2:
+                ip=iconV[1,iel0]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==3:
+                ip=iconV[4,iel1]
+                if on_bd[ip,2]:
+                  assemble=True
+
+              if node==4:
+                ip=iconV[1,iel1]
+                if on_bd[ip,2] and on_bd[ip,1]:
+                  assemble=True
+
+              if node==5:
+                ip=iconV[7,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==6:
+                ip=iconV[8,iel0]
+                assemble=True
+
+              if node==7:
+                ip=iconV[5,iel0]
+                assemble=True
+
+              if node==8:
+                ip=iconV[8,iel1]
+                assemble=True
+
+              if node==9:
+                ip=iconV[5,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==10:
+                ip=iconV[3,iel0]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==11:
+                ip=iconV[6,iel0]
+                assemble=True
+
+              if node==12:
+                ip=iconV[2,iel0]
+                assemble=True
+
+              if node==13:
+                ip=iconV[6,iel1]
+                assemble=True
+
+              if node==14:
+                ip=iconV[2,iel1]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==15:
+                ip=iconV[7,iel3]
+                if on_bd[ip,0]:
+                  assemble=True
+
+              if node==16:
+                ip=iconV[8,iel3]
+                assemble=True
+
+              if node==17:
+                ip=iconV[5,iel3]
+                assemble=True
+
+              if node==18:
+                ip=iconV[8,iel2]
+                assemble=True
+
+              if node==19:
+                ip=iconV[5,iel2]
+                if on_bd[ip,1]:
+                  assemble=True
+
+              if node==20:
+                ip=iconV[3,iel3]
+                if on_bd[ip,0] and on_bd[ip,3]:
+                  assemble=True
+
+              if node==21:
+                ip=iconV[6,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==22:
+                ip=iconV[2,iel3]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==23:
+                ip=iconV[6,iel2]
+                if on_bd[ip,3]:
+                  assemble=True
+
+              if node==24:
+                ip=iconV[2,iel2]
+                if on_bd[ip,3] and on_bd[ip,1]:
+                  assemble=True
+
+              assemble=True
+              if assemble:
+                P_vect[0] =1
+                P_vect[1] =x[ip]
+                P_vect[2] =y[ip]
+                P_vect[3] =x[ip]*y[ip]
+                P_vect[4] =x[ip]**2
+                P_vect[5] =y[ip]**2
+                P_vect[6] =x[ip]**2*y[ip]
+                P_vect[7] =x[ip]*y[ip]**2
+                P_vect[8] =x[ip]**2*y[ip]**2
+                if n_poly==16:
+                  P_vect[9] =x[ip]**3
+                  P_vect[10]=y[ip]**3
+                  P_vect[11]=x[ip]**3*y[ip]
+                  P_vect[12]=y[ip]**3*x[ip]
+                  P_vect[13]=x[ip]**3*y[ip]**2
+                  P_vect[14]=x[ip]**2*y[ip]**3
+                  P_vect[15]=x[ip]**3*y[ip]**3
+
+                for ii in range(n_poly):
+                  exx6[ip]+=solxx[ii]*P_vect[ii]
+                  exy6[ip]+=solxy[ii]*P_vect[ii]
+                  eyy6[ip]+=solyy[ii]*P_vect[ii]
+
+                count[ip] +=1
+           
+
+           counter+=1
+
+exx6/=count
+eyy6/=count
+exy6/=count
+mean_condition_4 /=condition_count
+
+
+
+print("     -> exx6 (m,M) %.4f %.4f " %(np.min(exx4),np.max(exx4)))
+print("     -> eyy6 (m,M) %.4f %.4f " %(np.min(eyy4),np.max(eyy4)))
+print("     -> exy6 (m,M) %.4f %.4f " %(np.min(exy4),np.max(exy4)))
+
+# np.savetxt('srn_4.ascii',np.array([x,y,exx4,eyy4,exy4]).T,header='# x,y,exx4,eyy4,exy4')
+# np.savetxt('p_4.ascii',np.array([x,y,p4]).T,header='# x,y,p')
+
+print("nel = %6d compute Superconvergence method 4: %.3f s" % (nel,(time.time() - start)))
+
+
 
 ######################################################################
 # compute error
@@ -1187,6 +2005,9 @@ errv=0.
 errexx0=0. ; errexx1=0. ; errexx2=0. ; errexx3=0. ; errexx4=0. ; errexx5=0.
 erreyy0=0. ; erreyy1=0. ; erreyy2=0. ; erreyy3=0. ; erreyy4=0. ; erreyy5=0.
 errexy0=0. ; errexy1=0. ; errexy2=0. ; errexy3=0. ; errexy4=0. ; errexy5=0.
+
+errexx6=0 ; errexy6=0 ; erreyy6=0
+errexx7=0 ; errexy7=0 ; erreyy7=0
 
 degree=3
 gleg_points,gleg_weights=np.polynomial.legendre.leggauss(degree)
@@ -1219,6 +2040,8 @@ for iel in range (0,nel):
             exx1q=0. ; exx2q=0. ; exx3q=0. ; exx4q=0. ; exx5q=0.
             eyy1q=0. ; eyy2q=0. ; eyy3q=0. ; eyy4q=0. ; eyy5q=0.
             exy1q=0. ; exy2q=0. ; exy3q=0. ; exy4q=0. ; exy5q=0.
+            exx6q=0 ; exy6q=0 ; eyy6q=0
+            exx7q=0 ; exy7q=0 ; eyy7q=0
             for k in range(0,mV):
                 xq+=NV[k]*x[iconV[k,iel]]
                 yq+=NV[k]*y[iconV[k,iel]]
@@ -1229,17 +2052,23 @@ for iel in range (0,nel):
                 exx3q+=NV[k]*exx3[iconV[k,iel]]
                 exx4q+=NV[k]*exx4[iconV[k,iel]]
                 exx5q+=dNVdx[k]*u[iconV[k,iel]]
+                exx6q+=NV[k]*exx5[iconV[k,iel]]
+                exx7q+=NV[k]*exx6[iconV[k,iel]]
                 eyy1q+=NV[k]*eyy1[iconV[k,iel]]
                 eyy2q+=NV[k]*eyy2[iconV[k,iel]]
                 eyy3q+=NV[k]*eyy3[iconV[k,iel]]
                 eyy4q+=NV[k]*eyy4[iconV[k,iel]]
                 eyy5q+=dNVdy[k]*v[iconV[k,iel]]
+                eyy6q+=NV[k]*eyy5[iconV[k,iel]]
+                eyy7q+=NV[k]*eyy6[iconV[k,iel]]
                 exy1q+=NV[k]*exy1[iconV[k,iel]]
                 exy2q+=NV[k]*exy2[iconV[k,iel]]
                 exy3q+=NV[k]*exy3[iconV[k,iel]]
                 exy4q+=NV[k]*exy4[iconV[k,iel]]
                 exy5q+=dNVdx[k]*v[iconV[k,iel]]*0.5\
                       +dNVdy[k]*u[iconV[k,iel]]*0.5
+                exy6q+=NV[k]*exy5[iconV[k,iel]]
+                exy7q+=NV[k]*exy6[iconV[k,iel]]
             exx0q=exx[iel]
             eyy0q=eyy[iel]
             exy0q=exy[iel]
@@ -1250,18 +2079,24 @@ for iel in range (0,nel):
             errexx3+=(exx3q-exxth(xq,yq))**2*weightq*jcob
             errexx4+=(exx4q-exxth(xq,yq))**2*weightq*jcob
             errexx5+=(exx5q-exxth(xq,yq))**2*weightq*jcob
+            errexx6+=(exx6q-exxth(xq,yq))**2*weightq*jcob
+            errexx7+=(exx7q-exxth(xq,yq))**2*weightq*jcob
             erreyy0+=(eyy0q-eyyth(xq,yq))**2*weightq*jcob
             erreyy1+=(eyy1q-eyyth(xq,yq))**2*weightq*jcob
             erreyy2+=(eyy2q-eyyth(xq,yq))**2*weightq*jcob
             erreyy3+=(eyy3q-eyyth(xq,yq))**2*weightq*jcob
             erreyy4+=(eyy4q-eyyth(xq,yq))**2*weightq*jcob
             erreyy5+=(eyy5q-eyyth(xq,yq))**2*weightq*jcob
+            erreyy6+=(eyy6q-eyyth(xq,yq))**2*weightq*jcob
+            erreyy7+=(eyy7q-eyyth(xq,yq))**2*weightq*jcob
             errexy0+=(exy0q-exyth(xq,yq))**2*weightq*jcob
             errexy1+=(exy1q-exyth(xq,yq))**2*weightq*jcob
             errexy2+=(exy2q-exyth(xq,yq))**2*weightq*jcob
             errexy3+=(exy3q-exyth(xq,yq))**2*weightq*jcob
             errexy4+=(exy4q-exyth(xq,yq))**2*weightq*jcob
             errexy5+=(exy5q-exyth(xq,yq))**2*weightq*jcob
+            errexy6+=(exy6q-exyth(xq,yq))**2*weightq*jcob
+            errexy7+=(exy7q-exyth(xq,yq))**2*weightq*jcob
 
 
 print(type(np.sqrt))
@@ -1275,6 +2110,8 @@ errexx2=np.sqrt(errexx2)
 errexx3=np.sqrt(errexx3)
 errexx4=np.sqrt(errexx4)
 errexx5=np.sqrt(errexx5)
+errexx6=np.sqrt(errexx6)
+errexx7=np.sqrt(errexx7)
 
 erreyy0=np.sqrt(erreyy0)
 erreyy1=np.sqrt(erreyy1)
@@ -1282,6 +2119,8 @@ erreyy2=np.sqrt(erreyy2)
 erreyy3=np.sqrt(erreyy3)
 erreyy4=np.sqrt(erreyy4)
 erreyy5=np.sqrt(erreyy5)
+erreyy6=np.sqrt(erreyy6)
+erreyy7=np.sqrt(erreyy7)
 
 errexy0=np.sqrt(errexy0)
 errexy1=np.sqrt(errexy1)
@@ -1289,12 +2128,15 @@ errexy2=np.sqrt(errexy2)
 errexy3=np.sqrt(errexy3)
 errexy4=np.sqrt(errexy4)
 errexy5=np.sqrt(errexy5)
+errexy6=np.sqrt(errexy6)
+errexy7=np.sqrt(errexy7)
 
 print("     -> nel= %6d ; errv= %.8e" %(nel,errv))
-print("     -> nel= %6d ; errexx0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexx0,errexx1,errexx2,errexx3,errexx4,errexx5))
-print("     -> nel= %6d ; erreyy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,erreyy0,erreyy1,erreyy2,erreyy3,erreyy4,erreyy5))
-print("     -> nel= %6d ; errexy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexy0,errexy1,errexy2,errexy3,errexy4,errexy5))
-print("     -> nel= %6d ; condition number %10.3E" %(nel, mean_condition))
+print("     -> nel= %6d ; errexx0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexx0,errexx1,errexx2,errexx3,errexx4,errexx5,errexx6,errexx7))
+print("     -> nel= %6d ; erreyy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,erreyy0,erreyy1,erreyy2,erreyy3,erreyy4,erreyy5,erreyy6,erreyy7))
+print("     -> nel= %6d ; errexy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexy0,errexy1,errexy2,errexy3,errexy4,errexy5,errexy6,errexy7))
+print("     -> nel= %6d ; condition number mean %10.3E %10.3E %10.3E %10.3E" %(nel, mean_condition_1,mean_condition_2,mean_condition_3,mean_condition_4))
+print("     -> nel= %6d ; condition number max %10.3E %10.3E %10.3E %10.3E" %(nel, max_condition_1,max_condition_2,max_condition_3,max_condition_4))
 
 print("compute errors: %.3f s" % (time.time() - start))
 
@@ -1492,6 +2334,67 @@ if visu==1:
            vtufile.write("%10e \n" % (exy4[i]-exyth(x[i],y[i])))
        vtufile.write("</DataArray>\n")
 
+       #-------------
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exx5' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % exx5[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='eyy5' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % eyy5[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exy5' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % exy5[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exx5 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (exx5[i]-exxth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='eyy5 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (eyy5[i]-eyyth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exy5 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (exy5[i]-exyth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
+
+       #-------------
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exx6' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % exx6[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='eyy6' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % eyy6[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exy6' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % exy6[i])
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exx6 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (exx6[i]-exxth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='eyy6 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (eyy6[i]-eyyth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
+       #--
+       vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='exy6 (err)' Format='ascii'> \n")
+       for i in range(0,nnp):
+           vtufile.write("%10e \n" % (exy6[i]-exyth(x[i],y[i])))
+       vtufile.write("</DataArray>\n")
        #--
        vtufile.write("</PointData>\n")
        #####

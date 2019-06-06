@@ -7,6 +7,12 @@ rm -f errors_exx_markers
 rm -f errors_eyy_markers
 rm -f errors_exy_markers
 rm -f condition_numbers
+rm -f time1
+rm -f time2
+rm -f time3
+rm -f time4
+rm -f time5
+rm -f time6
 
 
 #for n in 12 15 16 17 18 19 20 21 22 23 24 27 32 40 48 56 63 64 72 73 74 75 80 90 ; do # 100 110; do
@@ -18,8 +24,16 @@ for n in 12 15 16 17 18 19 20 21 22 23 24 27 32 40 48 56 64 72 80 90 ; do # 100 
     grep errexx opla >> errors_exx
     grep erreyy opla >> errors_eyy
     grep errexy opla >> errors_exy
-    grep "condition number" opla >> condition_numbers
+    grep "condition number mean" opla >> condition_numbers
+    grep "condition number max" opla >> condition_numbers_max
     grep errp0   opla >> errors_p
+    grep "Centre"   opla >> time1 
+    grep "Corner"   opla >> time2 
+    grep "method 1" opla >> time3
+    grep "method 2" opla >> time4
+    grep "method 3" opla >> time5
+    grep "method 4" opla >> time6
+
     #grep exx opla | grep markers >> errors_exx_markers
     #grep eyy opla | grep markers >> errors_eyy_markers
     #grep exy opla | grep markers >> errors_exy_markers
