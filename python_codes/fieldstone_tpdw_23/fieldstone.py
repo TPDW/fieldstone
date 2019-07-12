@@ -729,7 +729,7 @@ ty = np.zeros(nnp,np.float64)
 
 
 M_prime_el=np.zeros((4,4),dtype=np.float64)
-use_mass_lumping=True
+use_mass_lumping=False
 if use_mass_lumping:
     degree=4
     gleg_points,gleg_weights=gauss_lobatto(degree,20)

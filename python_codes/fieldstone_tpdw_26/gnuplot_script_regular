@@ -1,0 +1,237 @@
+set term pdf enhanced
+set pointsize 0.5 
+set key bottom
+set output 'errors.pdf'
+set log xy
+set xlabel 'h'
+set ylabel 'error'
+plot[][]\
+'errors' u (1./sqrt($3)):6 w lp t 'velocity',\
+'errors' u (1./sqrt($3)):9 w lp t 'pressure',\
+x**3/1000. w l lt -1 dt 3 t 'x^3'
+
+
+set output 'errors_exx.pdf'
+plot[][]\
+'errors_exx' u (1./sqrt($3)):7  w l t 'Centre to Node',\
+'errors_exx' u (1./sqrt($3)):8  w l t 'Corner to Node',\
+'errors_exx' u (1./sqrt($3)):9  w l t 'SPR - 1',\
+'errors_exx' u (1./sqrt($3)):10 w l t 'SPR - 2',\
+'errors_exx' u (1./sqrt($3)):12 w l t 'SPR - 3',\
+'errors_exx' u (1./sqrt($3)):13 w l t 'SPR - 4',\
+x**2/20  w l lt 1 lc 0 dt 1 t 'h^2',\
+x**3/90  w l lt 1 lc 0 dt 5 t 'h^3'
+
+
+
+set output 'errors_eyy.pdf'
+plot[][]\
+'errors_eyy' u (1./sqrt($3)):7  w l t 'Centre to Node',\
+'errors_eyy' u (1./sqrt($3)):8  w l t 'Corner to Node',\
+'errors_eyy' u (1./sqrt($3)):9  w l t 'SPR - 1',\
+'errors_eyy' u (1./sqrt($3)):10 w l t 'SPR - 2',\
+'errors_eyy' u (1./sqrt($3)):12 w l t 'SPR - 3',\
+'errors_eyy' u (1./sqrt($3)):13 w l t 'SPR - 4',\
+x**1/15.  w l lt 2 lc 0 dt 3 t 'h^1', \
+x**1.5/60. w l lt 1 lc 0 dt 2 t 'h^{1.5}',\
+x**2/25  w l lt 1 lc 0 dt 1 t 'h^2',\
+x**3/10  w l lt 1 lc 0 dt 5 t 'h^3',\
+x**3.5/10  w l lt 1 lc 0 dt 2 t 'h^{3.5}'
+
+set output 'errors_exy.pdf'
+plot[][]\
+'errors_exy' u (1./sqrt($3)):7  w l t 'Centre to Node',\
+'errors_exy' u (1./sqrt($3)):8  w l t 'Corner to Node',\
+'errors_exy' u (1./sqrt($3)):9  w l t 'SPR - 1',\
+'errors_exy' u (1./sqrt($3)):10 w l t 'SPR - 2',\
+'errors_exy' u (1./sqrt($3)):12 w l t 'SPR - 3',\
+'errors_exy' u (1./sqrt($3)):13 w l t 'SPR - 4',\
+x**2/30   w l lt 1 lc 0 dt 1 t 'h^2',\
+x**3/25  w l lt 1 lc 0 dt 5 t 'h^3'
+
+set title "method 0"
+set output 'method0.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):6  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):6  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):6  w lp t 'exy',\
+x/10 lt -1 dt 3 t 'h^1'
+
+set title "method 1"
+set output 'method1.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):7  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):7  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):7  w lp t 'exy',\
+x**1.5/10 lt -1 dt 2 t 'h^{1.5}'
+
+set title "method 2"
+set output 'method2.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):8  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):8  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):8  w lp t 'exy',\
+x**1.5/20 lt -1 dt 2 t 'h^{1.5}'
+
+set title "method 3"
+set output 'method3.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):9  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):9  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):9  w lp t 'exy',\
+x**2/4 lt -1 dt 1 t 'h^{2}'
+
+set title "method 4"
+set output 'method4.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):10  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):10  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):10  w lp t 'exy',\
+x**1.5/10 lt -1 dt 2 t 'h^{1.5}'
+
+set title "method 5"
+set output 'method5.pdf'
+plot[][1e-5:]\
+'errors_exx' u (1./sqrt($3)):11  w lp t 'exx',\
+'errors_eyy' u (1./sqrt($3)):11  w lp t 'eyy',\
+'errors_exy' u (1./sqrt($3)):11  w lp t 'exy',\
+x**1/10 lt -1 dt 3 t 'h^{1}'
+
+
+
+set output 'errors_nodal_exx.pdf'
+plot[][]\
+'nodal_errors_exx_internal' u (1./sqrt($3)):9   w l t 'exx_1',\
+'nodal_errors_exx_internal' u (1./sqrt($3)):10  w l t 'exx_2',\
+'nodal_errors_exx_internal' u (1./sqrt($3)):11  w l t 'exx_6',\
+x**3.5/10  w l lt 1 lc 0 dt 5 t 'h^{3.5}',\
+x**2/10   w l lt 1 lc 0 dt 2 t 'h^2'
+
+
+set output 'errors_nodal_exy.pdf'
+plot[][]\
+'nodal_errors_exy_internal' u (1./sqrt($3)):9   w l t 'exy_1',\
+'nodal_errors_exy_internal' u (1./sqrt($3)):10  w l t 'exy_2',\
+'nodal_errors_exy_internal' u (1./sqrt($3)):11  w l t 'exy_6',\
+x**3.5/10  w l lt 1 lc 0 dt 5 t 'h^{3.5}',\
+x**2/10   w l lt 1 lc 0 dt 2 t 'h^2'
+
+
+set output 'errors_nodal_eyy.pdf'
+plot[][]\
+'nodal_errors_eyy_internal' u (1./sqrt($3)):9   w l t 'eyy_1',\
+'nodal_errors_eyy_internal' u (1./sqrt($3)):10  w l t 'eyy_2',\
+'nodal_errors_eyy_internal' u (1./sqrt($3)):11  w l t 'eyy_6',\
+x**3.5/10  w l lt 1 lc 0 dt 5 t 'h^{3.5}',\
+x**2/10   w l lt 1 lc 0 dt 2 t 'h^2'
+
+
+set output 'errors_nodal_exx_edge.pdf'
+plot[][]\
+'nodal_errors_exx_edge' u (1./sqrt($3)):9   w l t 'exx_1',\
+'nodal_errors_exx_edge' u (1./sqrt($3)):10  w l t 'exx_2',\
+'nodal_errors_exx_edge' u (1./sqrt($3)):11  w l t 'exx_6',\
+x**3/10  w l lt 1 lc 0 dt 5 t 'h^{3}',\
+x**1.5/10   w l lt 1 lc 0 dt 2 t 'h^{1.5}'
+
+
+set output 'errors_nodal_exy_edge.pdf'
+plot[][]\
+'nodal_errors_exy_edge' u (1./sqrt($3)):9   w l t 'exy_1',\
+'nodal_errors_exy_edge' u (1./sqrt($3)):10  w l t 'exy_2',\
+'nodal_errors_exy_edge' u (1./sqrt($3)):11  w l t 'exy_6',\
+x**3/20  w l lt 1 lc 0 dt 6 t 'h^3',\
+x**1.5/30. w l lt 1 lc 0 dt 3 t 'h^{1.5}'
+
+
+set output 'errors_nodal_eyy_edge.pdf'
+plot[][]\
+'nodal_errors_eyy_edge' u (1./sqrt($3)):9   w l t 'eyy_1',\
+'nodal_errors_eyy_edge' u (1./sqrt($3)):10  w l t 'eyy_2',\
+'nodal_errors_eyy_edge' u (1./sqrt($3)):11  w l t 'eyy_6',\
+x**3/10  w l lt 1 lc 0 dt 5 t 'h^{3}',\
+x**1.5/10   w l lt 1 lc 0 dt 2 t 'h^{1.5}'
+
+
+
+
+set ylabel "condition number"
+set title "condition number"
+set output 'condition_number.pdf'
+
+plot[][]\
+'condition_numbers' u (1./sqrt($3)):8  w lp t 'condition number 1',\
+'condition_numbers' u (1./sqrt($3)):9  w lp t 'condition number 2',\
+'condition_numbers' u (1./sqrt($3)):10 w lp t 'condition number 3',\
+'condition_numbers' u (1./sqrt($3)):11 w lp t 'condition number 4' 
+
+set output 'condition_number_max.pdf'
+
+plot[][]\
+'condition_numbers_max' u (1./sqrt($3)):8  w lp t 'condition number 1',\
+'condition_numbers_max' u (1./sqrt($3)):9  w lp t 'condition number 2',\
+'condition_numbers_max' u (1./sqrt($3)):10 w lp t 'condition number 3',\
+'condition_numbers_max' u (1./sqrt($3)):11 w lp t 'condition number 4' 
+
+
+
+
+
+
+
+
+
+
+
+
+
+set ylabel "time"
+set xlabel "nel"
+set title "time1"
+set output 'time.pdf'
+
+plot [][]\
+'time1' u (sqrt($3)):6 w lp t 'time1',\
+'time2' u (sqrt($3)):6 w lp t 'time2',\
+'time3' u (sqrt($3)):8 w lp t 'time3',\
+'time4' u (sqrt($3)):8 w lp t 'time4',\
+'time5' u (sqrt($3)):8 w lp t 'time5',\
+'time6' u (sqrt($3)):8 w lp t 'time6'
+
+
+
+
+
+
+
+
+
+set output 'errors_exx_markers.pdf'
+plot[][]\
+'errors_exx_markers' u (1./sqrt($2)):(abs($7))  w l t 'exx_0',\
+'errors_exx_markers' u (1./sqrt($2)):(abs($8))  w l t 'exx_1',\
+'errors_exx_markers' u (1./sqrt($2)):(abs($9))  w l t 'exx_2',\
+'errors_exx_markers' u (1./sqrt($2)):(abs($10)) w l t 'exx_3',\
+'errors_exx_markers' u (1./sqrt($2)):(abs($11)) w l t 'exx_4'
+
+set output 'errors_eyy_markers.pdf'
+plot[][]\
+'errors_eyy_markers' u (1./sqrt($2)):(abs($7))  w l t 'eyy_0',\
+'errors_eyy_markers' u (1./sqrt($2)):(abs($8))  w l t 'eyy_1',\
+'errors_eyy_markers' u (1./sqrt($2)):(abs($9))  w l t 'eyy_2',\
+'errors_eyy_markers' u (1./sqrt($2)):(abs($10)) w l t 'eyy_3',\
+'errors_eyy_markers' u (1./sqrt($2)):(abs($11)) w l t 'eyy_4'
+
+set output 'errors_exy_markers.pdf'
+plot[][]\
+'errors_exy_markers' u (1./sqrt($2)):(abs($7))  w l t 'exy_0',\
+'errors_exy_markers' u (1./sqrt($2)):(abs($8))  w l t 'exy_1',\
+'errors_exy_markers' u (1./sqrt($2)):(abs($9))  w l t 'exy_2',\
+'errors_exy_markers' u (1./sqrt($2)):(abs($10)) w l t 'exy_3',\
+'errors_exy_markers' u (1./sqrt($2)):(abs($11)) w l t 'exy_4'
+
+
+
+
+
+

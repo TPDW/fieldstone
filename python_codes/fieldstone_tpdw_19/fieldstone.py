@@ -127,7 +127,7 @@ if int(len(sys.argv) == 3):
    nelr = int(sys.argv[1])
    visu = int(sys.argv[2])
 else:
-   nelr = 24
+   nelr = 12
    visu = 1
 
 assert (nelr>0.), "nnx should be positive" 
@@ -498,6 +498,72 @@ np.savetxt('strainrate.ascii',np.array([xc,yc,exx,eyy,exy]).T,header='# xc,yc,ex
 
 print("compute p & sr | time: %.3f s" % (time.time() - start))
 
+
+
+######################################################################
+# compute nodal pressure & strainrates : C->N method
+######################################################################
+
+q1=np.zeros(nnp,dtype=np.float64)  
+exxn1=np.zeros(nnp,dtype=np.float64)  
+eyyn1=np.zeros(nnp,dtype=np.float64)  
+exyn1=np.zeros(nnp,dtype=np.float64)  
+count=np.zeros(nnp,dtype=np.float64)  
+
+for iel in range(0,nel):
+    q1[icon[0,iel]]+=p[iel]
+    q1[icon[1,iel]]+=p[iel]
+    q1[icon[2,iel]]+=p[iel]
+    q1[icon[3,iel]]+=p[iel]
+    exxn1[icon[0,iel]]+=exx[iel]
+    exxn1[icon[1,iel]]+=exx[iel]
+    exxn1[icon[2,iel]]+=exx[iel]
+    exxn1[icon[3,iel]]+=exx[iel]
+    eyyn1[icon[0,iel]]+=eyy[iel]
+    eyyn1[icon[1,iel]]+=eyy[iel]
+    eyyn1[icon[2,iel]]+=eyy[iel]
+    eyyn1[icon[3,iel]]+=eyy[iel]
+    exyn1[icon[0,iel]]+=exy[iel]
+    exyn1[icon[1,iel]]+=exy[iel]
+    exyn1[icon[2,iel]]+=exy[iel]
+    exyn1[icon[3,iel]]+=exy[iel]
+    count[icon[0,iel]]+=1
+    count[icon[1,iel]]+=1
+    count[icon[2,iel]]+=1
+    count[icon[3,iel]]+=1
+
+q1/=count
+exxn1/=count
+eyyn1/=count
+exyn1/=count
+
+np.savetxt('q_C-N.ascii',np.array([x,y,q1]).T,header='# x,y,q1')
+np.savetxt('strainrate_C-N.ascii',np.array([x,y,exxn1,eyyn1,exyn1]).T,header='# x,y,exxn1,eyyn1,exyn1')
+
+sxxn1=2*exxn1-q1
+syyn1=2*eyyn1-q1
+sxyn1=exyn1
+
+#################################################################
+## Surface C->N
+#################################################################
+
+txn1=np.zeros(nnp,dtype=np.float64)
+tyn1=np.zeros(nnp,dtype=np.float64)
+
+for i in range(nnp):
+    if bc_fix[2*i]: 
+        n_x=x[i]/np.sqrt(x[i]**2+y[i]**2)
+        n_y=y[i]/np.sqrt(x[i]**2+y[i]**2)
+        if (sqrt(x[i]**2+y[i]**2) > 1.5):
+
+            txn1[i] = n_x*sxxn1[i]+n_y*sxyn1[i]
+            tyn1[i] = n_x*sxyn1[i]+n_y*syyn1[i]
+        else:
+            txn1[i] = -n_x*sxxn1[i]-n_y*sxyn1[i]
+            tyn1[i] = -n_x*sxyn1[i]-n_y*syyn1[i]
+
+
 #################################################################
 #### CBF
 #################################################################
@@ -753,6 +819,11 @@ ty_inner=np.zeros(n_inner,dtype=np.float64)
 tx_outer=np.zeros(n_outer,dtype=np.float64)
 ty_outer=np.zeros(n_outer,dtype=np.float64)
 
+tx_innern1=np.zeros(n_inner,dtype=np.float64)
+ty_innern1=np.zeros(n_inner,dtype=np.float64)
+tx_outern1=np.zeros(n_outer,dtype=np.float64)
+ty_outern1=np.zeros(n_outer,dtype=np.float64)
+
 tx_inner_analytical=np.zeros(n_inner,dtype=np.float64)
 ty_inner_analytical=np.zeros(n_inner,dtype=np.float64)
 tx_outer_analytical=np.zeros(n_outer,dtype=np.float64)
@@ -764,33 +835,41 @@ for i in range(nnp):
     if is_inner[i]:
         tx_inner[counter_inner] = tx[i]
         ty_inner[counter_inner] = ty[i]
+        tx_innern1[counter_inner] = txn1[i]
+        ty_innern1[counter_inner] = tyn1[i]
         tx_inner_analytical[counter_inner] = get_analytical_tx(x[i],y[i])
         ty_inner_analytical[counter_inner] = get_analytical_ty(x[i],y[i])
         counter_inner+=1
     if is_outer[i]:
         tx_outer[counter_outer] = tx[i]
         ty_outer[counter_outer] = ty[i]
+        tx_outern1[counter_outer] = txn1[i]
+        ty_outern1[counter_outer] = tyn1[i]
         tx_outer_analytical[counter_outer] = get_analytical_tx(x[i],y[i])
         ty_outer_analytical[counter_outer] = get_analytical_ty(x[i],y[i])
         counter_outer+=1
 fig,((ax0,ax1),(ax2,ax3)) = plt.subplots(2,2,figsize=(10,10))
 
 ax0.plot(tx_inner,label="CBF")
+ax0.plot(tx_innern1,label="n1")
 ax0.plot(tx_inner_analytical,label="analytical")
 ax0.legend()
 ax0.set_title("$t_x$ (inner)")
 
 ax1.plot(ty_inner,label="CBF")
+ax1.plot(ty_innern1,label="n1")
 ax1.plot(ty_inner_analytical,label="analytical")
 ax1.legend()
 ax1.set_title("$t_y$ (inner)")
 
 ax2.plot(tx_outer,label="CBF")
+ax2.plot(tx_outern1,label="n1")
 ax2.plot(tx_outer_analytical,label="analytical")
 ax2.legend()
 ax2.set_title("$t_x$ (outer)")
 
 ax3.plot(ty_outer,label="CBF")
+ax3.plot(ty_outern1,label="n1")
 ax3.plot(ty_outer_analytical,label="analytical")
 ax3.legend()
 ax3.set_title("$t_y$ (outer)")
@@ -969,6 +1048,17 @@ if visu==1:
        vtufile.write("%10f \n" %ty[i])
    vtufile.write("</DataArray>\n")
     #--
+    #--
+   vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='txn1' Format='ascii'> \n")
+   for i in range(0,nnp):
+       vtufile.write("%10f \n" %txn1[i])
+   vtufile.write("</DataArray>\n")
+    #--
+   vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='tyn1' Format='ascii'> \n")
+   for i in range(0,nnp):
+       vtufile.write("%10f \n" %tyn1[i])
+   vtufile.write("</DataArray>\n")
+    #--
    vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='y' Format='ascii'> \n")
    for i in range(0,nnp):
        vtufile.write("%10f \n" %y[i])
@@ -997,6 +1087,21 @@ if visu==1:
    vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='sxy analytical' Format='ascii'> \n")
    for i in range(0,nnp):
        vtufile.write("%10f \n" %s_xy(x[i],y[i]))
+   vtufile.write("</DataArray>\n")
+   #--
+   vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='sxx ' Format='ascii'> \n")
+   for i in range(0,nnp):
+       vtufile.write("%10f \n" %sxxn1[i])
+   vtufile.write("</DataArray>\n")
+    #--
+   vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='syy ' Format='ascii'> \n")
+   for i in range(0,nnp):
+       vtufile.write("%10f \n" %syyn1[i])
+   vtufile.write("</DataArray>\n")
+    #--
+   vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='sxy ' Format='ascii'> \n")
+   for i in range(0,nnp):
+       vtufile.write("%10f \n" %sxyn1[i])
    vtufile.write("</DataArray>\n")
    #--
    vtufile.write("<DataArray type='Float32' NumberOfComponents='1' Name='tx analytical' Format='ascii'> \n")

@@ -1,0 +1,12 @@
+\begin{table}
+\label{table:q2q1}
+\caption{$L_1$ norm convergences for the $Q_1P_0$ Donea and Huerta benchmark.}
+\begin{center}
+\begin{tabular}{| c | c c | c c | c c |} 
+\hlineMethod & \multicolumn{2}{|c|}{Upper} & \multicolumn{2}{|c|}{Lower} & \multicolumn{2}{|c|}{Sides} \ \hline& $t_x$ & $t_y$ & $t_x$ & $t_y$ & $t_x$ & $t_y$  \ \hline
+LS   &  1.86 & 1.95 & 1.86 & 1.95 & 1.95 & 1.86\\ \hline
+CN   &  1.01 & 0.89 & 1.01 & 0.89 & 0.94 & 1.01\\ \hline
+CBF  &  1.82 & 1.99 & 1.82 & 1.99 & 1.86 & 1.82\\ \hline
+\end{tabular}
+\end{center}
+\end{table}

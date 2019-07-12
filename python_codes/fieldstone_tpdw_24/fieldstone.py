@@ -8,6 +8,8 @@ from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
 import time as time
 import matplotlib.pyplot as plt
 from sympy.integrals.quadrature import gauss_lobatto
+from scipy import stats
+
 
 #------------------------------------------------------------------------------
 def bx(x, y):
@@ -91,6 +93,21 @@ def sigma_yy(x,y):
 
 def sigma_yx(x,y):
   return sigma_xy(x,y)
+
+
+def get_regression(h,y):
+    y=np.abs(y)
+    x=np.abs(h)
+    #return np.linalg.lstsq(np.vstack([np.log(h), np.ones(len(np.log(h)))]).T,np.log(y))[0][0]
+    return stats.linregress(np.log(x),np.log(y))[0]
+
+def get_regression_x_intercept_difference(h,y1,y2):
+  [m1,c1]=stats.linregress(np.log(np.abs(h)),np.log(np.abs(y1)))[0:2]
+  [m2,c2]=stats.linregress(np.log(np.abs(h)),np.log(np.abs(y2)))[0:2]
+  r1=-c1/m1
+  r2=-c2/m2
+
+  return r1-r2
 
 #------------------------------------------------------------------------------
 
@@ -1033,20 +1050,37 @@ for nelx in nelx_list:
     L1_norm_LS =[0]*8
     L2_norm_LS =[0]*8
 
+
     degree=4
     gleg_points,gleg_weights=np.polynomial.legendre.leggauss(degree)
 
 
+    # error_upper_array=np.zeros(nelx-2)
+    # cbfel_upper_array=np.zeros(nelx-2)
+    # anael_upper_array=np.zeros(nelx-2)
+
+    counter=-1
     for iel in range(nel-nelx+1,nel-1): # upper norms 
+        counter+=1
+        # print(counter)
+        # print(x[iconV[3,iel]],x[iconV[6,iel]],x[iconV[2,iel]])
+        # txq_CBF=0
+        # tyq_CBF=0
+        # xq=0
         for iq in range(degree):
             rq=gleg_points[iq]
+            #print(rq)
             weightq=gleg_weights[iq]
 
-            N_0=0.5*rq*(1-rq)
+            N_0=0.5*rq*(rq-1)
             N_1=0.5*rq*(1+rq)
             N_2=1-rq**2
 
+
             xq=N_0*x[iconV[3,iel]]+N_1*x[iconV[2,iel]]+N_2*x[iconV[6,iel]]
+            # print(rq,N_0,N_1,N_2)
+            #xq = x[iconV[6,iel]]  - rq*(x[iconV[3,iel]]-x[iconV[2,iel]])
+            #print(x[iconV[3,iel]],x[iconV[2,iel]],x[iconV[6,iel]],xq)
 
             tyq_CBF=N_0*ty[iconV[3,iel]]+N_1*ty[iconV[2,iel]]+N_2*ty[iconV[6,iel]]
             txq_CBF=N_0*tx[iconV[3,iel]]+N_1*tx[iconV[2,iel]]+N_2*tx[iconV[6,iel]]
@@ -1059,13 +1093,12 @@ for nelx in nelx_list:
 
 
 
-
     for iel in range(1,nelx-1): # lower norms 
         for iq in range(degree):
             rq=gleg_points[iq]
             weightq=gleg_weights[iq]
 
-            N_0=0.5*rq*(1-rq)
+            N_0=0.5*rq*(rq-1)
             N_1=0.5*rq*(1+rq)
             N_2=1-rq**2
 
@@ -1075,11 +1108,11 @@ for nelx in nelx_list:
             tyq_CBF=N_0*ty[iconV[0,iel]]+N_1*ty[iconV[1,iel]]+N_2*ty[iconV[4,iel]]
             txq_CBF=N_0*tx[iconV[0,iel]]+N_1*tx[iconV[1,iel]]+N_2*tx[iconV[4,iel]]
 
-            L1_norm_CBF[2]+=abs(tyq_CBF-sigma_yy(xq,0))*hx*weightq
-            L2_norm_CBF[2]+=(tyq_CBF-sigma_yy(xq,0))**2*hx*weightq
+            L1_norm_CBF[2]+=abs(tyq_CBF+sigma_yy(xq,0))*hx*weightq
+            L2_norm_CBF[2]+=(tyq_CBF+sigma_yy(xq,0))**2*hx*weightq
 
-            L1_norm_CBF[3]+=abs(txq_CBF-sigma_xy(xq,0))*hx*weightq
-            L2_norm_CBF[3]+=(txq_CBF-sigma_xy(xq,0))**2*hx*weightq
+            L1_norm_CBF[3]+=abs(txq_CBF+sigma_xy(xq,0))*hx*weightq
+            L2_norm_CBF[3]+=(txq_CBF+sigma_xy(xq,0))**2*hx*weightq
 
     for i in range(1,len(left_elements_list)-1): #left norms ergo nodes 3 & 0
         iel=left_elements_list[i]
@@ -1087,7 +1120,29 @@ for nelx in nelx_list:
             rq=gleg_points[iq]
             weightq=gleg_weights[iq]
 
-            N_0=0.5*rq*(1-rq)
+            N_0=0.5*rq*(rq-1)
+            N_1=0.5*rq*(1+rq)
+            N_2=1-rq**2
+
+            yq=N_0*y[iconV[3,iel]]+N_1*y[iconV[0,iel]]+N_2*y[iconV[7,iel]]
+
+
+            tyq_CBF=N_0*ty[iconV[3,iel]]+N_1*ty[iconV[0,iel]]+N_2*ty[iconV[7,iel]]
+            txq_CBF=N_0*tx[iconV[3,iel]]+N_1*tx[iconV[0,iel]]+N_2*tx[iconV[7,iel]]
+
+            L1_norm_CBF[4]+=abs(tyq_CBF+sigma_xy(0,yq))*hx*weightq
+            L2_norm_CBF[4]+=(tyq_CBF+sigma_xy(0,yq))**2*hx*weightq
+
+            L1_norm_CBF[5]+=abs(txq_CBF+sigma_xx(0,yq))*hx*weightq
+            L2_norm_CBF[5]+=(txq_CBF+sigma_xx(0,yq))**2*hx*weightq
+
+    for i in range(1,len(right_elements_list)-1): #left norms ergo nodes 3 & 0
+        iel=right_elements_list[i]
+        for iq in range(degree):
+            rq=gleg_points[iq]
+            weightq=gleg_weights[iq]
+
+            N_0=0.5*rq*(rq-1)
             N_1=0.5*rq*(1+rq)
             N_2=1-rq**2
 
@@ -1097,37 +1152,14 @@ for nelx in nelx_list:
             tyq_CBF=N_0*ty[iconV[1,iel]]+N_1*ty[iconV[2,iel]]+N_2*ty[iconV[5,iel]]
             txq_CBF=N_0*tx[iconV[1,iel]]+N_1*tx[iconV[2,iel]]+N_2*tx[iconV[5,iel]]
 
-            L1_norm_CBF[4]+=abs(tyq_CBF-sigma_xy(0,yq))*hx*weightq
-            L2_norm_CBF[4]+=(tyq_CBF-sigma_xy(0,yq))**2*hx*weightq
+            L1_norm_CBF[6]+=abs(tyq_CBF-sigma_xy(1,yq))*hx*weightq
+            L2_norm_CBF[6]+=(tyq_CBF-sigma_xy(1,yq))**2*hx*weightq*0
 
-            L1_norm_CBF[5]+=abs(txq_CBF-sigma_xx(0,yq))*hx*weightq
-            L2_norm_CBF[5]+=(txq_CBF-sigma_xx(0,yq))**2*hx*weightq
-
-    for i in range(1,len(right_elements_list)-1): #left norms ergo nodes 3 & 0
-        iel=right_elements_list[i]
-        for iq in range(degree):
-            rq=gleg_points[iq]
-            weightq=gleg_weights[iq]
-
-            N_0=0.5*rq*(1-rq)
-            N_1=0.5*rq*(1+rq)
-            N_2=1-rq**2
-
-            yq=N_0*x[iconV[0,iel]]+N_1*x[iconV[3,iel]]+N_2*x[iconV[7,iel]]
-
-
-            tyq_CBF=N_0*ty[iconV[0,iel]]+N_1*ty[iconV[3,iel]]+N_2*ty[iconV[7,iel]]
-            txq_CBF=N_0*tx[iconV[0,iel]]+N_1*tx[iconV[3,iel]]+N_2*tx[iconV[7,iel]]
-
-            L1_norm_CBF[6]+=abs(tyq_CBF-sigma_xy(0,yq))*hx*weightq
-            L2_norm_CBF[6]+=(tyq_CBF-sigma_xy(0,yq))**2*hx*weightq
-
-            L1_norm_CBF[7]+=abs(txq_CBF-sigma_xx(0,yq))*hx*weightq
-            L2_norm_CBF[7]+=(txq_CBF-sigma_xx(0,yq))**2*hx*weightq
+            L1_norm_CBF[7]+=abs(txq_CBF-sigma_xx(1,yq))*hx*weightq
+            L2_norm_CBF[7]+=(txq_CBF-sigma_xx(1,yq))**2*hx*weightq
 
 
     for i in range(8):
-        print(i)
         L1_norm_list_CBF[i].append(L1_norm_CBF[i])
         L2_norm_list_CBF[i].append(np.sqrt(L2_norm_CBF[i]))
 
@@ -1136,25 +1168,39 @@ for nelx in nelx_list:
 hx_list=1/(2*np.array(nelx_list)+1)
 log_hx=np.log(np.abs(hx_list))
 
-fig,ax=plt.subplots(4,2,figsize=(20,40))
+# fig,ax=plt.subplots(4,2,figsize=(20,40))
 
-for i in range(8):
-  print(i)
-  print(i%2)
-  print(int(np.floor(i/2)))
-  #ax.plot(log_hx,np.log(np.abs(corner_error_list)),label="corner CBF")
-  ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_CBF[i]),label="L1 CBF")
-  ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_CBF[i]),label="L2 CBF")
-  # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_CN[i]),label="L1 CN")
-  # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_CN[i]),label="L2 CN")
-  # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_LS[i]),label="L1 LS")
-  # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_LS[i]),label="L2 LS")
-  ax[int(np.floor(i/2))][i%2].grid()
-  ax[int(np.floor(i/2))][i%2].legend()
-  ax[int(np.floor(i/2))][i%2].set_xlabel("log(1/nnx)"+ str(i))
-  ax[int(np.floor(i/2))][i%2].set_ylabel("Norm Magnitude")
-  #ax[i%2][np.floor(i/2)].set_title("Convergence Rates for Traction Norms")
-fig.savefig("convergence.pdf")
+# for i in range(8):
+#   print(i)
+#   print(i%2)
+#   print(int(np.floor(i/2)))
+#   #ax.plot(log_hx,np.log(np.abs(corner_error_list)),label="corner CBF")
+#   #ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_CBF[i]),label="L1 CBF")
+#   ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_CBF[i]),label="L2 CBF")
+#   # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_CN[i]),label="L1 CN")
+#   # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_CN[i]),label="L2 CN")
+#   # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L1_norm_list_LS[i]),label="L1 LS")
+#   # ax[int(np.floor(i/2))][i%2].plot(log_hx,np.log(L2_norm_list_LS[i]),label="L2 LS")
+#   ax[int(np.floor(i/2))][i%2].grid()
+#   ax[int(np.floor(i/2))][i%2].legend()
+#   ax[int(np.floor(i/2))][i%2].set_xlabel("log(1/nnx)"+ str(i))
+#   ax[int(np.floor(i/2))][i%2].set_ylabel("Norm Magnitude")
+#   #ax[i%2][np.floor(i/2)].set_title("Convergence Rates for Traction Norms")
+# fig.savefig("convergence.pdf")
+
+fig,ax = plt.subplots()
+ax.plot(log_hx,np.log(L2_norm_list_CBF[0]),label="$t_y$ Upper Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[1]),label="$t_x$ Upper Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[2]),label="$t_y$ Lower Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[3]),label="$t_x$ Lower Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[4]),label="$t_y$ Left Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[5]),label="$t_x$ Left Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[6]),label="$t_y$ Right Surface")
+ax.plot(log_hx,np.log(L2_norm_list_CBF[7]),label="$t_x$ Right Surface")
+ax.legend()
+ax.set_xlabel("log(1/nnx)")
+ax.set_ylabel("Norm Magnitude")
+fig.savefig("convergence_L2.pdf")
 
 
 #####################################################################
@@ -1225,6 +1271,96 @@ vtufile.write("</Piece>\n")
 vtufile.write("</UnstructuredGrid>\n")
 vtufile.write("</VTKFile>\n")
 vtufile.close()
+
+######Now do the regressions
+
+L1_norm_CBF_regression=np.zeros(8,dtype=np.float64)
+L1_norm_CN_regression=np.zeros(8,dtype=np.float64)
+L1_norm_LS_regression=np.zeros(8,dtype=np.float64)
+L2_norm_CBF_regression=np.zeros(8,dtype=np.float64)
+L2_norm_CN_regression=np.zeros(8,dtype=np.float64)
+L2_norm_LS_regression=np.zeros(8,dtype=np.float64)
+
+for i in range(8):  
+  print(i)
+  L1_norm_CBF_regression[i] = get_regression(hx_list,L1_norm_list_CBF[i])
+  L1_norm_CN_regression[i]  = get_regression(hx_list,L1_norm_list_CN[i])
+  L1_norm_LS_regression[i]  = get_regression(hx_list,L1_norm_list_LS[i])
+
+  L2_norm_CBF_regression[i] = get_regression(hx_list,L2_norm_list_CBF[i])
+  L2_norm_CN_regression[i]  = get_regression(hx_list,L2_norm_list_CN[i])
+  L2_norm_LS_regression[i]  = get_regression(hx_list,L2_norm_list_LS[i])
+
+
+  print("L1 norm convergence rates")
+  print("CBF:" + str(L1_norm_CBF_regression[i]))
+  print("CN :" + str(L1_norm_CN_regression[i]))
+  print("LS :" + str(L1_norm_LS_regression[i]))
+
+  print("L2 norm convergence rates")
+  print("CBF:" + str(L2_norm_CBF_regression[i]))
+  print("CN :" + str(L2_norm_CN_regression[i]))
+  print("LS :" + str(L2_norm_LS_regression[i]))
+
+  L1_CBF_CN_difference = get_regression_x_intercept_difference(hx_list,L1_norm_list_CBF[i],L1_norm_list_CN[i])
+  L1_CBF_LS_difference = get_regression_x_intercept_difference(hx_list,L1_norm_list_CBF[i],L1_norm_list_LS[i])
+  L1_LS_CN_difference  = get_regression_x_intercept_difference(hx_list,L1_norm_list_LS[i],L1_norm_list_CN[i])
+
+  L2_CBF_CN_difference = get_regression_x_intercept_difference(hx_list,L2_norm_list_CBF[i],L2_norm_list_CN[i])
+  L2_CBF_LS_difference = get_regression_x_intercept_difference(hx_list,L2_norm_list_CBF[i],L2_norm_list_LS[i])
+  L2_LS_CN_difference  = get_regression_x_intercept_difference(hx_list,L2_norm_list_LS[i],L2_norm_list_CN[i])
+
+  print("L1 LS CN ",L1_LS_CN_difference)
+  print("L1 CN CBF ",L1_CBF_CN_difference)
+  print("L1 CBF LS ",L1_CBF_LS_difference)
+
+  print("L2 LS CN ",L2_LS_CN_difference)
+  print("L2 CN CBF ",L2_CBF_CN_difference)
+  print("L2 CBF LS ",L2_CBF_LS_difference)
+
+
+filename="table_convergences_L1"
+file=open(filename,'w')
+file.write("\\begin{table}\n")
+file.write("\label{table:q2q1}\n")
+file.write("\caption{$L_1$ norms for the $Q_1P_0$ Donea and Huerta benchmark.}\n")
+file.write("\\begin{center}\n")
+file.write("\\begin{tabular}{| c | c c | c c | c c |} \n")
+file.write("\hline")
+file.write("Method & \multicolumn{2}{|c|}{Upper} & \multicolumn{2}{|c|}{Lower} & \multicolumn{2}{|c|}{Sides} \\ \hline")
+file.write("& $t_x$ & $t_y$ & $t_x$ & $t_y$ & $t_x$ & $t_y$  \\ \hline\n")
+file.write("LS   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L1_norm_LS_regression[1],L1_norm_LS_regression[0],L1_norm_LS_regression[3],L1_norm_LS_regression[2],L1_norm_LS_regression[5],L1_norm_LS_regression[4]))
+file.write("CN   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L1_norm_CN_regression[1],L1_norm_CN_regression[0],L1_norm_CN_regression[3],L1_norm_CN_regression[2],L1_norm_CN_regression[5],L1_norm_CN_regression[4]))
+file.write("CBF  &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L1_norm_CBF_regression[1],L1_norm_CBF_regression[0],L1_norm_CBF_regression[3],L1_norm_CBF_regression[2],L1_norm_CBF_regression[5],L1_norm_CBF_regression[4]))
+file.write("\end{tabular}\n")
+file.write("\end{center}\n")
+file.write("\end{table}\n")
+file.close()
+
+filename="table_convergences_L2"
+file=open(filename,'w')
+file.write("\\begin{table}\n")
+file.write("\label{table:q2q1}\n")
+file.write("\caption{$L_1$ norms for the $Q_1P_0$ Donea and Huerta benchmark.}\n")
+file.write("\\begin{center}\n")
+file.write("\\begin{tabular}{| c | c c | c c | c c |} \n")
+file.write("\hline")
+file.write("Method & \multicolumn{2}{|c|}{Upper} & \multicolumn{2}{|c|}{Lower} & \multicolumn{2}{|c|}{Sides} \\ \hline")
+file.write("& $t_x$ & $t_y$ & $t_x$ & $t_y$ & $t_x$ & $t_y$  \\ \hline\n")
+file.write("LS   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L2_norm_LS_regression[1],L2_norm_LS_regression[0],L2_norm_LS_regression[3],L2_norm_LS_regression[2],L2_norm_LS_regression[5],L2_norm_LS_regression[4]))
+file.write("CN   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L2_norm_CN_regression[1],L2_norm_CN_regression[0],L2_norm_CN_regression[3],L2_norm_CN_regression[2],L2_norm_CN_regression[5],L2_norm_CN_regression[4]))
+file.write("CBF  &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & \\\ \hline\n".format(
+L2_norm_CBF_regression[1],L2_norm_CBF_regression[0],L2_norm_CBF_regression[3],L2_norm_CBF_regression[2],L2_norm_CBF_regression[5],L2_norm_CBF_regression[4]))
+file.write("\end{tabular}\n")
+file.write("\end{center}\n")
+file.write("\end{table}\n")
+file.close()
+
 
 print("-----------------------------")
 print("------------the end----------")

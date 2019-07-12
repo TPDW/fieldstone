@@ -145,7 +145,7 @@ for nelx in nelx_list:
   Nfem=NfemV+NfemP # total number of dofs
 
 
-  pnormalise=True
+  pnormalise=False
   sparse=False
   viscosity=1  # dynamic viscosity \mu
 
@@ -1623,26 +1623,34 @@ fig.savefig("convergence.pdf")
 
 
 ######Now do the regressions
+
+L1_norm_CBF_regression=np.zeros(8,dtype=np.float64)
+L1_norm_CN_regression=np.zeros(8,dtype=np.float64)
+L1_norm_LS_regression=np.zeros(8,dtype=np.float64)
+L2_norm_CBF_regression=np.zeros(8,dtype=np.float64)
+L2_norm_CN_regression=np.zeros(8,dtype=np.float64)
+L2_norm_LS_regression=np.zeros(8,dtype=np.float64)
+
 for i in range(8):  
   print(i)
-  L1_norm_CBF_regression = get_regression(hx_list,L1_norm_list_CBF[i])
-  L1_norm_CN_regression  = get_regression(hx_list,L1_norm_list_CN[i])
-  L1_norm_LS_regression  = get_regression(hx_list,L1_norm_list_LS[i])
+  L1_norm_CBF_regression[i] = get_regression(hx_list,L1_norm_list_CBF[i])
+  L1_norm_CN_regression[i]  = get_regression(hx_list,L1_norm_list_CN[i])
+  L1_norm_LS_regression[i]  = get_regression(hx_list,L1_norm_list_LS[i])
 
-  L2_norm_CBF_regression = get_regression(hx_list,L2_norm_list_CBF[i])
-  L2_norm_CN_regression  = get_regression(hx_list,L2_norm_list_CN[i])
-  L2_norm_LS_regression  = get_regression(hx_list,L2_norm_list_LS[i])
+  L2_norm_CBF_regression[i] = get_regression(hx_list,L2_norm_list_CBF[i])
+  L2_norm_CN_regression[i]  = get_regression(hx_list,L2_norm_list_CN[i])
+  L2_norm_LS_regression[i]  = get_regression(hx_list,L2_norm_list_LS[i])
 
 
   print("L1 norm convergence rates")
-  print("CBF:" + str(L1_norm_CBF_regression))
-  print("CN :" + str(L1_norm_CN_regression))
-  print("LS :" + str(L1_norm_LS_regression))
+  print("CBF:" + str(L1_norm_CBF_regression[i]))
+  print("CN :" + str(L1_norm_CN_regression[i]))
+  print("LS :" + str(L1_norm_LS_regression[i]))
 
   print("L2 norm convergence rates")
-  print("CBF:" + str(L2_norm_CBF_regression))
-  print("CN :" + str(L2_norm_CN_regression))
-  print("LS :" + str(L2_norm_LS_regression))
+  print("CBF:" + str(L2_norm_CBF_regression[i]))
+  print("CN :" + str(L2_norm_CN_regression[i]))
+  print("LS :" + str(L2_norm_LS_regression[i]))
 
   L1_CBF_CN_difference = get_regression_x_intercept_difference(hx_list,L1_norm_list_CBF[i],L1_norm_list_CN[i])
   L1_CBF_LS_difference = get_regression_x_intercept_difference(hx_list,L1_norm_list_CBF[i],L1_norm_list_LS[i])
@@ -1659,6 +1667,53 @@ for i in range(8):
   print("L2 LS CN ",L2_LS_CN_difference)
   print("L2 CN CBF ",L2_CBF_CN_difference)
   print("L2 CBF LS ",L2_CBF_LS_difference)
+
+
+filename="table_convergences_L1"
+file=open(filename,'w')
+file.write("\\begin{table}\n")
+file.write("\label{table:q2q1}\n")
+file.write("\caption{$L_1$ norm convergences for the $Q_1P_0$ Donea and Huerta benchmark.}\n")
+file.write("\\begin{center}\n")
+file.write("\\begin{tabular}{| c | c c | c c | c c |} \n")
+file.write("\hline\n")
+file.write("Method & \multicolumn{2}{|c|}{Upper} & \multicolumn{2}{|c|}{Lower} & \multicolumn{2}{|c|}{Sides} \\\ \hline \n")
+file.write("& $t_x$ & $t_y$ & $t_x$ & $t_y$ & $t_x$ & $t_y$  \\\ \hline\n")
+file.write("LS   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L1_norm_LS_regression[1],L1_norm_LS_regression[0],L1_norm_LS_regression[3],L1_norm_LS_regression[2],L1_norm_LS_regression[5],L1_norm_LS_regression[4]))
+file.write("CN   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L1_norm_CN_regression[1],L1_norm_CN_regression[0],L1_norm_CN_regression[3],L1_norm_CN_regression[2],L1_norm_CN_regression[5],L1_norm_CN_regression[4]))
+file.write("CBF  &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L1_norm_CBF_regression[1],L1_norm_CBF_regression[0],L1_norm_CBF_regression[3],L1_norm_CBF_regression[2],L1_norm_CBF_regression[5],L1_norm_CBF_regression[4]))
+file.write("\end{tabular}\n")
+file.write("\end{center}\n")
+file.write("\end{table}\n")
+file.close()
+
+filename="table_convergences_L2"
+file=open(filename,'w')
+file.write("\\begin{table}\n")
+file.write("\label{table:q2q1}\n")
+file.write("\caption{$L_2$ norm convergences for the $Q_1P_0$ Donea and Huerta benchmark.}\n")
+file.write("\\begin{center}\n")
+file.write("\\begin{tabular}{| c | c c | c c | c c |} \n")
+file.write("\hline\n")
+file.write("Method & \multicolumn{2}{|c|}{Upper} & \multicolumn{2}{|c|}{Lower} & \multicolumn{2}{|c|}{Sides} \\\ \hline\n")
+file.write("& $t_x$ & $t_y$ & $t_x$ & $t_y$ & $t_x$ & $t_y$  \\\ \hline\n")
+file.write("LS   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L2_norm_LS_regression[1],L2_norm_LS_regression[0],L2_norm_LS_regression[3],L2_norm_LS_regression[2],L2_norm_LS_regression[5],L2_norm_LS_regression[4]))
+file.write("CN   &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L2_norm_CN_regression[1],L2_norm_CN_regression[0],L2_norm_CN_regression[3],L2_norm_CN_regression[2],L2_norm_CN_regression[5],L2_norm_CN_regression[4]))
+file.write("CBF  &  {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f} & {:.2f}\\\ \hline\n".format(
+L2_norm_CBF_regression[1],L2_norm_CBF_regression[0],L2_norm_CBF_regression[3],L2_norm_CBF_regression[2],L2_norm_CBF_regression[5],L2_norm_CBF_regression[4]))
+file.write("\end{tabular}\n")
+file.write("\end{center}\n")
+file.write("\end{table}\n")
+file.close()
+
+
+
+
 
 print("-----------------------------")
 print("------------the end----------")

@@ -765,7 +765,7 @@ M_prime_el =(hx/2.)*np.array([ \
 [0,1]])
 
 CBF_use_smoothed_pressure=False
-use_theoretical_pressure=False
+use_theoretical_pressure=True
 
 
 for iel in range(0,nel):

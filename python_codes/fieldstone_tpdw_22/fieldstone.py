@@ -591,10 +591,10 @@ ty = np.zeros(nnp,np.float64)
 # [2./3.,1./3.],\
 # [1./3.,2./3.]])
 
-M_prime_el=np.array([\
-[ 4/15, 2/15,-1/15],\
-[ 2/15,16/15, 2/15],\
-[-1/15, 2/15, 4/15]])
+# M_prime_el=np.array([\
+# [ 4/15, 2/15,-1/15],\
+# [ 2/15,16/15, 2/15],\
+# [-1/15, 2/15, 4/15]])
 
 
 #Mass Lumping
@@ -612,26 +612,14 @@ if use_mass_lumping:
 else:
     degree=3
     gleg_points,gleg_weights=np.polynomial.legendre.leggauss(degree)
+
 for iq in range(degree):
     jq=0
     rq=gleg_points[iq]
     sq=-1
     weightq=gleg_weights[iq]
     
-    NV[0:mV]=NNV(rq,sq)
-#     dNdr[0:m]=dNNVdr(rq,sq)
-#     dNds[0:m]=dNNVds(rq,sq)
-
-#     # calculate jacobian matrix
-#     jcb = np.zeros((2, 2),dtype=float)
-#     for k in range(0,m):
-#         jcb[0, 0] += dNdr[k]*x[icon[k,iel]]
-#         jcb[0, 1] += dNdr[k]*y[icon[k,iel]]
-#         jcb[1, 0] += dNds[k]*x[icon[k,iel]]
-#         jcb[1, 1] += dNds[k]*y[icon[k,iel]]
-#     jcob = np.linalg.det(jcb)
-#     jcbi = np.linalg.inv(jcb)  
-    
+    NV[0:mV]=NNV(rq,sq)    
 
     M_prime_el[0,0] += NV[0]*NV[0]*weightq
     M_prime_el[0,1] += NV[0]*NV[4]*weightq

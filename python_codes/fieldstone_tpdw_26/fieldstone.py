@@ -151,7 +151,7 @@ hy=Ly/nely
 
 random_grid=False
 
-semi_random_grid=True
+semi_random_grid=False
 
 pnormalise=True
 
@@ -292,10 +292,12 @@ print("setup: connectivity: %.3f s" % (time.time() - start))
 
 start = time.time()
 
+
 bc_fix=np.zeros(NfemV,dtype=np.bool)  # boundary condition, yes/no
 bc_val=np.zeros(NfemV,dtype=np.float64)  # boundary condition, value
 on_bd=np.zeros((nnp,4),dtype=np.bool)  # boundary indicator
- 
+on_bd_el=np.zeros(nel,dtype=np.bool) 
+
 for i in range(0, nnp):
     if x[i]<eps:
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
@@ -313,6 +315,12 @@ for i in range(0, nnp):
        bc_fix[i*ndofV  ] = True ; bc_val[i*ndofV  ] = 0.
        bc_fix[i*ndofV+1] = True ; bc_val[i*ndofV+1] = 0.
        on_bd[i,3]=True
+
+for iel in range(nel):
+  for k in range(mV):
+    for side in range(4):
+      if on_bd[iconV[k,iel],side]:
+        on_bd_el[iel] = True
 
 print("setup: boundary conditions: %.3f s" % (time.time() - start))
 
@@ -2008,11 +2016,13 @@ errexy0=0. ; errexy1=0. ; errexy2=0. ; errexy3=0. ; errexy4=0. ; errexy5=0.
 
 errexx6=0 ; errexy6=0 ; erreyy6=0
 errexx7=0 ; errexy7=0 ; erreyy7=0
+errexx8=0 ; errexy8=0 ; erreyy8=0
 
 degree=3
 gleg_points,gleg_weights=np.polynomial.legendre.leggauss(degree)
 
 for iel in range (0,nel):
+  if not on_bd_el[iel]:
     for iq in range(degree):
         for jq in range(degree):
             rq=gleg_points[iq]
@@ -2081,6 +2091,7 @@ for iel in range (0,nel):
             errexx5+=(exx5q-exxth(xq,yq))**2*weightq*jcob
             errexx6+=(exx6q-exxth(xq,yq))**2*weightq*jcob
             errexx7+=(exx7q-exxth(xq,yq))**2*weightq*jcob
+            errexx8+=(exx7q-exx5q)**2*weightq*jcob
             erreyy0+=(eyy0q-eyyth(xq,yq))**2*weightq*jcob
             erreyy1+=(eyy1q-eyyth(xq,yq))**2*weightq*jcob
             erreyy2+=(eyy2q-eyyth(xq,yq))**2*weightq*jcob
@@ -2089,6 +2100,7 @@ for iel in range (0,nel):
             erreyy5+=(eyy5q-eyyth(xq,yq))**2*weightq*jcob
             erreyy6+=(eyy6q-eyyth(xq,yq))**2*weightq*jcob
             erreyy7+=(eyy7q-eyyth(xq,yq))**2*weightq*jcob
+            erreyy8+=(eyy7q-eyy5q)**2*weightq*jcob
             errexy0+=(exy0q-exyth(xq,yq))**2*weightq*jcob
             errexy1+=(exy1q-exyth(xq,yq))**2*weightq*jcob
             errexy2+=(exy2q-exyth(xq,yq))**2*weightq*jcob
@@ -2099,8 +2111,6 @@ for iel in range (0,nel):
             errexy7+=(exy7q-exyth(xq,yq))**2*weightq*jcob
 
 
-print(type(np.sqrt))
-print(type(errv))
 
 errv=np.sqrt(errv)
 
@@ -2112,6 +2122,7 @@ errexx4=np.sqrt(errexx4)
 errexx5=np.sqrt(errexx5)
 errexx6=np.sqrt(errexx6)
 errexx7=np.sqrt(errexx7)
+errexx8=np.sqrt(errexx8)
 
 erreyy0=np.sqrt(erreyy0)
 erreyy1=np.sqrt(erreyy1)
@@ -2121,6 +2132,7 @@ erreyy4=np.sqrt(erreyy4)
 erreyy5=np.sqrt(erreyy5)
 erreyy6=np.sqrt(erreyy6)
 erreyy7=np.sqrt(erreyy7)
+erreyy8=np.sqrt(erreyy8)
 
 errexy0=np.sqrt(errexy0)
 errexy1=np.sqrt(errexy1)
@@ -2130,15 +2142,111 @@ errexy4=np.sqrt(errexy4)
 errexy5=np.sqrt(errexy5)
 errexy6=np.sqrt(errexy6)
 errexy7=np.sqrt(errexy7)
+errexy8=np.sqrt(errexy8)
 
 print("     -> nel= %6d ; errv= %.8e" %(nel,errv))
-print("     -> nel= %6d ; errexx0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexx0,errexx1,errexx2,errexx3,errexx4,errexx5,errexx6,errexx7))
-print("     -> nel= %6d ; erreyy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,erreyy0,erreyy1,erreyy2,erreyy3,erreyy4,erreyy5,erreyy6,erreyy7))
-print("     -> nel= %6d ; errexy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexy0,errexy1,errexy2,errexy3,errexy4,errexy5,errexy6,errexy7))
+print("     -> nel= %6d ; errexx0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexx0,errexx1,errexx2,errexx3,errexx4,errexx5,errexx6,errexx7,errexx8))
+print("     -> nel= %6d ; erreyy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,erreyy0,erreyy1,erreyy2,erreyy3,erreyy4,erreyy5,erreyy6,erreyy7,erreyy8))
+print("     -> nel= %6d ; errexy0,1,2,3,4,5 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e" %(nel,errexy0,errexy1,errexy2,errexy3,errexy4,errexy5,errexy6,errexy7,errexy8))
 print("     -> nel= %6d ; condition number mean %10.3E %10.3E %10.3E %10.3E" %(nel, mean_condition_1,mean_condition_2,mean_condition_3,mean_condition_4))
 print("     -> nel= %6d ; condition number max %10.3E %10.3E %10.3E %10.3E" %(nel, max_condition_1,max_condition_2,max_condition_3,max_condition_4))
 
 print("compute errors: %.3f s" % (time.time() - start))
+
+#####################################################################
+## Nodal Errors?
+#####################################################################
+
+
+errexx1n = 0
+errexy1n = 0
+erreyy1n = 0
+
+errexx2n = 0
+errexy2n = 0
+erreyy2n = 0
+
+errexx6n = 0
+errexy6n = 0
+erreyy6n = 0
+
+errexx1ne = 0
+errexy1ne = 0
+erreyy1ne = 0
+
+errexx2ne = 0
+errexy2ne = 0
+erreyy2ne = 0
+
+errexx6ne = 0
+errexy6ne = 0
+erreyy6ne = 0
+
+for i in range(nnp):
+  if (on_bd[i,0] or on_bd[i,1] or on_bd[i,2] or on_bd[i,3]):
+
+    errexx1ne += (exx1[i] - exxth(x[i],y[i]))**2
+    errexy1ne += (exy1[i] - exyth(x[i],y[i]))**2
+    erreyy1ne += (eyy1[i] - eyyth(x[i],y[i]))**2
+
+    errexx2ne += (exx2[i] - exxth(x[i],y[i]))**2
+    errexy2ne += (exy2[i] - exyth(x[i],y[i]))**2
+    erreyy2ne += (eyy2[i] - eyyth(x[i],y[i]))**2
+
+    errexx6ne += (exx6[i] - exxth(x[i],y[i]))**2
+    errexy6ne += (exy6[i] - exyth(x[i],y[i]))**2
+    erreyy6ne += (eyy6[i] - eyyth(x[i],y[i]))**2
+
+  else:
+    errexx1n += (exx1[i] - exxth(x[i],y[i]))**2
+    errexy1n += (exy1[i] - exyth(x[i],y[i]))**2
+    erreyy1n += (eyy1[i] - eyyth(x[i],y[i]))**2
+
+    errexx2n += (exx2[i] - exxth(x[i],y[i]))**2
+    errexy2n += (exy2[i] - exyth(x[i],y[i]))**2
+    erreyy2n += (eyy2[i] - eyyth(x[i],y[i]))**2
+
+    errexx6n += (exx6[i] - exxth(x[i],y[i]))**2
+    errexy6n += (exy6[i] - exyth(x[i],y[i]))**2
+    erreyy6n += (eyy6[i] - eyyth(x[i],y[i]))**2
+
+
+nnp_edge = 2*nnx+2*nny-4
+nnp_int  = nnp-nnp_edge # nnp internal
+
+errexx1ne = np.sqrt(errexx1n/nnp_edge)
+errexy1ne = np.sqrt(errexy1n/nnp_edge)
+erreyy1ne = np.sqrt(erreyy1n/nnp_edge)
+
+errexx2ne = np.sqrt(errexx2n/nnp_edge)
+errexy2ne = np.sqrt(errexy2n/nnp_edge)
+erreyy2ne = np.sqrt(erreyy2n/nnp_edge)
+
+errexx6ne = np.sqrt(errexx6n/nnp_edge)
+errexy6ne = np.sqrt(errexy6n/nnp_edge)
+erreyy6ne = np.sqrt(erreyy6n/nnp_edge)
+
+errexx1n = np.sqrt(errexx1n/nnp_int)
+errexy1n = np.sqrt(errexy1n/nnp_int)
+erreyy1n = np.sqrt(erreyy1n/nnp_int)
+
+errexx2n = np.sqrt(errexx2n/nnp_int)
+errexy2n = np.sqrt(errexy2n/nnp_int)
+erreyy2n = np.sqrt(erreyy2n/nnp_int)
+
+errexx6n = np.sqrt(errexx6n/nnp_int)
+errexy6n = np.sqrt(errexy6n/nnp_int)
+erreyy6n = np.sqrt(erreyy6n/nnp_int)
+
+
+print("     -> nel= %6d ; nodal errors exx internal %.8e %.8e %.8e" %(nel, errexx1n,errexx2n,errexx6n))
+print("     -> nel= %6d ; nodal errors exy internal %.8e %.8e %.8e" %(nel, errexy1n,errexy2n,errexy6n))
+print("     -> nel= %6d ; nodal errors eyy internal %.8e %.8e %.8e" %(nel, erreyy1n,erreyy2n,erreyy6n))
+
+print("     -> nel= %6d ; nodal errors exx edge %.8e %.8e %.8e" %(nel, errexx1ne,errexx2ne,errexx6ne))
+print("     -> nel= %6d ; nodal errors exy edge %.8e %.8e %.8e" %(nel, errexy1ne,errexy2ne,errexy6ne))
+print("     -> nel= %6d ; nodal errors eyy edge %.8e %.8e %.8e" %(nel, erreyy1ne,erreyy2ne,erreyy6ne))
+
 
 #####################################################################
 # plot of solution

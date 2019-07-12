@@ -159,6 +159,16 @@ L2_ty_inner_list=[]
 L2_tx_outer_list=[]
 L2_ty_outer_list=[]
 
+L1_tx_inner_listn1=[]
+L1_ty_inner_listn1=[]
+L1_tx_outer_listn1=[]
+L1_ty_outer_listn1=[]
+
+L2_tx_inner_listn1=[]
+L2_ty_inner_listn1=[]
+L2_tx_outer_listn1=[]
+L2_ty_outer_listn1=[]
+
 for nelr in nelr_list:
 
     R1=1.
@@ -527,6 +537,74 @@ for nelr in nelr_list:
 
     print("compute p & sr | time: %.3f s" % (time.time() - start))
 
+
+
+    ######################################################################
+    # compute nodal pressure & strainrates : C->N method
+    ######################################################################
+
+    q1=np.zeros(nnp,dtype=np.float64)  
+    exxn1=np.zeros(nnp,dtype=np.float64)  
+    eyyn1=np.zeros(nnp,dtype=np.float64)  
+    exyn1=np.zeros(nnp,dtype=np.float64)  
+    count=np.zeros(nnp,dtype=np.float64)  
+
+    for iel in range(0,nel):
+        q1[icon[0,iel]]+=p[iel]
+        q1[icon[1,iel]]+=p[iel]
+        q1[icon[2,iel]]+=p[iel]
+        q1[icon[3,iel]]+=p[iel]
+        exxn1[icon[0,iel]]+=exx[iel]
+        exxn1[icon[1,iel]]+=exx[iel]
+        exxn1[icon[2,iel]]+=exx[iel]
+        exxn1[icon[3,iel]]+=exx[iel]
+        eyyn1[icon[0,iel]]+=eyy[iel]
+        eyyn1[icon[1,iel]]+=eyy[iel]
+        eyyn1[icon[2,iel]]+=eyy[iel]
+        eyyn1[icon[3,iel]]+=eyy[iel]
+        exyn1[icon[0,iel]]+=exy[iel]
+        exyn1[icon[1,iel]]+=exy[iel]
+        exyn1[icon[2,iel]]+=exy[iel]
+        exyn1[icon[3,iel]]+=exy[iel]
+        count[icon[0,iel]]+=1
+        count[icon[1,iel]]+=1
+        count[icon[2,iel]]+=1
+        count[icon[3,iel]]+=1
+
+    q1/=count
+    exxn1/=count
+    eyyn1/=count
+    exyn1/=count
+
+    np.savetxt('q_C-N.ascii',np.array([x,y,q1]).T,header='# x,y,q1')
+    np.savetxt('strainrate_C-N.ascii',np.array([x,y,exxn1,eyyn1,exyn1]).T,header='# x,y,exxn1,eyyn1,exyn1')
+
+    sxxn1=2*exxn1-q1
+    syyn1=2*eyyn1-q1
+    sxyn1=exyn1
+
+    #################################################################
+    ## Surface C->N
+    #################################################################
+
+    txn1=np.zeros(nnp,dtype=np.float64)
+    tyn1=np.zeros(nnp,dtype=np.float64)
+
+    for i in range(nnp):
+        if bc_fix[2*i]: 
+            n_x=x[i]/np.sqrt(x[i]**2+y[i]**2)
+            n_y=y[i]/np.sqrt(x[i]**2+y[i]**2)
+            if (sqrt(x[i]**2+y[i]**2) > 1.5):
+
+                txn1[i] = n_x*sxxn1[i]+n_y*sxyn1[i]
+                tyn1[i] = n_x*sxyn1[i]+n_y*syyn1[i]
+            else:
+                txn1[i] = -n_x*sxxn1[i]-n_y*sxyn1[i]
+                tyn1[i] = -n_x*sxyn1[i]-n_y*syyn1[i]
+
+
+
+
     #################################################################
     #### CBF
     #################################################################
@@ -782,6 +860,11 @@ for nelr in nelr_list:
     tx_outer=np.zeros(n_outer,dtype=np.float64)
     ty_outer=np.zeros(n_outer,dtype=np.float64)
 
+    tx_innern1=np.zeros(n_inner,dtype=np.float64)
+    ty_innern1=np.zeros(n_inner,dtype=np.float64)
+    tx_outern1=np.zeros(n_outer,dtype=np.float64)
+    ty_outern1=np.zeros(n_outer,dtype=np.float64)
+
     tx_inner_analytical=np.zeros(n_inner,dtype=np.float64)
     ty_inner_analytical=np.zeros(n_inner,dtype=np.float64)
     tx_outer_analytical=np.zeros(n_outer,dtype=np.float64)
@@ -793,39 +876,46 @@ for nelr in nelr_list:
         if is_inner[i]:
             tx_inner[counter_inner] = tx[i]
             ty_inner[counter_inner] = ty[i]
+            tx_innern1[counter_inner] = txn1[i]
+            ty_innern1[counter_inner] = tyn1[i]
             tx_inner_analytical[counter_inner] = get_analytical_tx(x[i],y[i])
             ty_inner_analytical[counter_inner] = get_analytical_ty(x[i],y[i])
             counter_inner+=1
         if is_outer[i]:
             tx_outer[counter_outer] = tx[i]
             ty_outer[counter_outer] = ty[i]
+            tx_outern1[counter_outer] = txn1[i]
+            ty_outern1[counter_outer] = tyn1[i]
             tx_outer_analytical[counter_outer] = get_analytical_tx(x[i],y[i])
             ty_outer_analytical[counter_outer] = get_analytical_ty(x[i],y[i])
             counter_outer+=1
     fig,((ax0,ax1),(ax2,ax3)) = plt.subplots(2,2,figsize=(10,10))
 
     ax0.plot(tx_inner,label="CBF")
+    ax0.plot(tx_innern1,label="n1")
     ax0.plot(tx_inner_analytical,label="analytical")
     ax0.legend()
     ax0.set_title("$t_x$ (inner)")
 
     ax1.plot(ty_inner,label="CBF")
+    ax1.plot(ty_innern1,label="n1")
     ax1.plot(ty_inner_analytical,label="analytical")
     ax1.legend()
     ax1.set_title("$t_y$ (inner)")
 
     ax2.plot(tx_outer,label="CBF")
+    ax2.plot(tx_outern1,label="n1")
     ax2.plot(tx_outer_analytical,label="analytical")
     ax2.legend()
     ax2.set_title("$t_x$ (outer)")
 
     ax3.plot(ty_outer,label="CBF")
+    ax3.plot(ty_outern1,label="n1")
     ax3.plot(ty_outer_analytical,label="analytical")
     ax3.legend()
     ax3.set_title("$t_y$ (outer)")
 
     fig.savefig("tractions.pdf")
-
 
     #######################################################################
     ## Norm Calculations
@@ -841,6 +931,15 @@ for nelr in nelr_list:
     L2_tx_outer=0
     L2_ty_outer=0
 
+    L1_tx_innern1=0
+    L1_ty_innern1=0
+    L1_tx_outern1=0
+    L1_ty_outern1=0
+
+    L2_tx_innern1=0
+    L2_ty_innern1=0
+    L2_tx_outern1=0
+    L2_ty_outern1=0
 
 
     for iel in range(nel):
@@ -875,6 +974,15 @@ for nelr in nelr_list:
                 L2_tx_inner += (txq- get_analytical_tx(xq,yq))**2*wq*distance
                 L2_ty_inner += (tyq- get_analytical_ty(xq,yq))**2*wq*distance
 
+                txqn1 = N0*txn1[icon[0,iel]]+N1*txn1[icon[1,iel]]
+                tyqn1 = N0*tyn1[icon[0,iel]]+N1*tyn1[icon[1,iel]]
+
+                L1_tx_innern1 += abs(txqn1- get_analytical_tx(xq,yq))*wq*distance
+                L1_ty_innern1 += abs(tyqn1- get_analytical_ty(xq,yq))*wq*distance
+
+                L2_tx_innern1 += (txqn1- get_analytical_tx(xq,yq))**2*wq*distance
+                L2_ty_innern1 += (tyqn1- get_analytical_ty(xq,yq))**2*wq*distance
+
         if el_is_on_outer:
 
             distance = np.sqrt((x[icon[2,iel]]-x[icon[3,iel]])**2+(y[icon[2,iel]]-y[icon[3,iel]])**2)
@@ -898,7 +1006,14 @@ for nelr in nelr_list:
                 L2_tx_outer += (txq- get_analytical_tx(xq,yq))**2*wq*distance
                 L2_ty_outer += (tyq- get_analytical_ty(xq,yq))**2*wq*distance
 
+                txqn1 = N0*txn1[icon[2,iel]]+N1*txn1[icon[3,iel]]
+                tyqn1 = N0*tyn1[icon[2,iel]]+N1*tyn1[icon[3,iel]]
 
+                L1_tx_innern1 += abs(txqn1- get_analytical_tx(xq,yq))*wq*distance
+                L1_ty_innern1 += abs(tyqn1- get_analytical_ty(xq,yq))*wq*distance
+
+                L2_tx_innern1 += (txqn1- get_analytical_tx(xq,yq))**2*wq*distance
+                L2_ty_innern1 += (tyqn1- get_analytical_ty(xq,yq))**2*wq*distance
 
 
     L1_tx_inner_list.append(L1_tx_inner)
@@ -911,6 +1026,16 @@ for nelr in nelr_list:
     L2_tx_outer_list.append(np.sqrt(L2_tx_outer))
     L2_ty_outer_list.append(np.sqrt(L2_ty_outer))
 
+    L1_tx_inner_listn1.append(L1_tx_innern1)
+    L1_ty_inner_listn1.append(L1_ty_innern1)
+    L2_tx_inner_listn1.append(np.sqrt(L2_tx_innern1))
+    L2_ty_inner_listn1.append(np.sqrt(L2_ty_innern1))
+
+    L1_tx_outer_listn1.append(L1_tx_outern1)
+    L1_ty_outer_listn1.append(L1_ty_outern1)
+    L2_tx_outer_listn1.append(np.sqrt(L2_tx_outern1))
+    L2_ty_outer_listn1.append(np.sqrt(L2_ty_outern1))
+
 
 hr_list=1/(np.array(nelr_list)+1)
 log_hr=np.log(np.abs(hr_list))
@@ -922,15 +1047,25 @@ fig_y,ax_y=plt.subplots()
 # print(hr_list)
 # print(len(L1_tx_inner_list))
 # print(L1_tx_inner_list)
-ax_x.plot(log_hr,np.log(np.array(L1_tx_inner_list)),label="L1 tx inner")
-ax_y.plot(log_hr,np.log(np.array(L1_ty_inner_list)),label="L1 ty inner")
+# ax_x.plot(log_hr,np.log(np.array(L1_tx_inner_list)),label="L1 tx inner")
+# ax_y.plot(log_hr,np.log(np.array(L1_ty_inner_list)),label="L1 ty inner")
 ax_x.plot(log_hr,np.log(np.array(L2_tx_inner_list)),label="L2 tx inner")
 ax_y.plot(log_hr,np.log(np.array(L2_ty_inner_list)),label="L2 ty inner")
 
-ax_x.plot(log_hr,np.log(np.array(L1_tx_outer_list)),label="L1 tx outer")
-ax_y.plot(log_hr,np.log(np.array(L1_ty_outer_list)),label="L1 ty outer")
+# ax_x.plot(log_hr,np.log(np.array(L1_tx_outer_list)),label="L1 tx outer")
+# ax_y.plot(log_hr,np.log(np.array(L1_ty_outer_list)),label="L1 ty outer")
 ax_x.plot(log_hr,np.log(np.array(L2_tx_outer_list)),label="L2 tx outer")
 ax_y.plot(log_hr,np.log(np.array(L2_ty_outer_list)),label="L2 ty outer")
+
+# ax_x.plot(log_hr,np.log(np.array(L1_tx_inner_listn1)),label="L1 tx inner C->N")
+# ax_y.plot(log_hr,np.log(np.array(L1_ty_inner_listn1)),label="L1 ty inner C->N")
+ax_x.plot(log_hr,np.log(np.array(L2_tx_inner_listn1)),label="L2 tx inner C->N")
+ax_y.plot(log_hr,np.log(np.array(L2_ty_inner_listn1)),label="L2 ty inner C->N")
+
+# ax_x.plot(log_hr,np.log(np.array(L1_tx_outer_listn1)),label="L1 tx outer C->N")
+# ax_y.plot(log_hr,np.log(np.array(L1_ty_outer_listn1)),label="L1 ty outer C->N")
+ax_x.plot(log_hr,np.log(np.array(L2_tx_outer_listn1)),label="L2 tx outer C->N")
+ax_y.plot(log_hr,np.log(np.array(L2_ty_outer_listn1)),label="L2 ty outer C->N")
 
 ax_x.legend()
 ax_y.legend()

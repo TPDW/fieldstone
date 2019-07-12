@@ -78,7 +78,7 @@ ndofP=1  # number of pressure degrees of freedom
 
 Lx=1.  # horizontal extent of the domain 
 Ly=1.  # vertical extent of the domain 
-nelx_list = [16,24,32,40,48,56,64]
+nelx_list = [16,24,32,40,48,64]
 #nelx_list=[64,64]
 corner_error_list=[]
 L1_norm_list_CBF=[]
@@ -92,7 +92,7 @@ L2_norm_list_LS=[]
 
 
 
-fig_CN,axes_CN=plt.subplots(1,len(nelx_list),figsize=(30,10))
+fig_CN,axes_CN=plt.subplots(2,int(len(nelx_list)/2),figsize=(30,10))
 
 counter_nelx=0
 
@@ -865,11 +865,11 @@ for nelx in nelx_list:
   ##### Plot the tractions on the upper surface###############
 
 
-  axes_CN[counter_nelx].plot(sigmayy_th(x[nnp-nnx:nnp],y0),label="Theoretical")
-  axes_CN[counter_nelx].plot(ty[nnp-nnx:nnp],label="CBF")
-  axes_CN[counter_nelx].plot(-q1[nnp-nnx:nnp]+2.*viscosity*eyyn1[nnp-nnx:nnp],label="CN")
-  axes_CN[counter_nelx].set_xlabel("nelx="+str(nelx))
-  axes_CN[counter_nelx].legend()
+  axes_CN[counter_nelx%2][int(counter_nelx/2)].plot(sigmayy_th(x[nnp-nnx:nnp],y0),label="Theoretical")
+  axes_CN[counter_nelx%2][int(counter_nelx/2)].plot(ty[nnp-nnx:nnp],label="CBF")
+  axes_CN[counter_nelx%2][int(counter_nelx/2)].plot(-q1[nnp-nnx:nnp]+2.*viscosity*eyyn1[nnp-nnx:nnp],label="CN")
+  axes_CN[counter_nelx%2][int(counter_nelx/2)].set_xlabel("nelx="+str(nelx))
+  axes_CN[counter_nelx%2][int(counter_nelx/2)].legend()
 
 
 

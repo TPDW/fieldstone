@@ -1,0 +1,15 @@
+\begin{table}
+\label{table:q2q1}
+\caption{Top left corner tractions.}
+\begin{center}
+\begin{tabular}{| c | c c c c c c |} 
+\hline 
+Method & \multicolumn{6}{c|}{Convergence Rate} \\ \hline
+& \multicolumn{2}{c|}{$L_2$} & \multicolumn{2}{c|}{Interal} & \multicolumn{2}{c|}{Edge} \\ \hline
+& $e_{xx}$ & $e_{xy}$ & $e_{xx}$ & $e_{xy}$ & $e_{xx}$ & $e_{xy}$ \\ \hline
+Centre to Node & 1.30 & 0.96 & 1.44 & 1.10 & 0.92 & 0.92 \\ \hline
+Corner to Node & 0.93 & 0.93 & 1.05 & 1.01 & 0.53 & 0.53\\ \hline
+Superconvergent Patch Recovery & 0.91 & 0.86 & 0.99 & 0.95 & 0.47 & 0.47 \\ \hline
+\end{tabular}
+\end{center}
+\end{table}
